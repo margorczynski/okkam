@@ -4,26 +4,41 @@ mod ga;
 mod polynomial;
 mod common;
 
+use std::io::{stdout, Result};
 use std::collections::HashSet;
 use std::cmp::Ordering;
 
+use ratatui::prelude::*;
 use plotters::prelude::*;
+
+use crossterm::{
+    event::{self, KeyCode, KeyEventKind},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
+    ExecutableCommand,
+};
+use ratatui::{
+    prelude::{CrosstermBackend, Stylize, Terminal},
+    widgets::Paragraph,
+};
 
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
 use crate::ga::ga::*;
 
-fn main() {
-    let data: Vec<(Vec<f32>, f32)> = (1..=100)
-        .map(|x| (vec![x as f32], (x as f32).ln()))
+fn main() -> Result<()> {
+    let data: Vec<(Vec<f32>, f32)> = (1..=10)
+        .map(|x| (vec![x as f32], (x as f32).sin()))
         .collect();
 
-    let terms_num = 5;
-    let degree_bits_num = 3;
+    let terms_num = 10;
+    let degree_bits_num = 5;
     let degree_num = 1;
 
-    let epsilon = 0.1;
+    let epsilon = 0.05;
 
     let chromosome_bit_len = Polynomial::get_bits_needed(terms_num, degree_bits_num, degree_num);
 
@@ -31,13 +46,14 @@ fn main() {
 
     let mut plot_iter = 0;
 
+    let mut lowest_err = f32::INFINITY;
+
     //GA loop
     loop {
         //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
         let mut chromosomes_with_error: Vec<(Chromosome, f32)> = Vec::new();
-        let mut err_accum = 0.0f32;
         for chromosome in &population {
-            let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);
+            let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);//.simplify();
             let mut mean_squared_err = 0.0;
             for (inputs, output) in &data {
                 let res = polynomial.evaluate(inputs);
@@ -48,12 +64,16 @@ fn main() {
 
             mean_squared_err = mean_squared_err/ (data.len() as f32);
 
-            if(mean_squared_err <= epsilon) {
-                println!("Found: {}", polynomial);
-                return;
+            if mean_squared_err < lowest_err {
+                let rel_error = mean_squared_err / data.iter().map(|d| d.1).sum::<f32>();
+                lowest_err = mean_squared_err;
+                println!("ITER {}, Lowest: {}, rel_error: {}", plot_iter, lowest_err, rel_error);
+                //plot_result(&data, &polynomial);
             }
 
-            err_accum += mean_squared_err;
+            if mean_squared_err <= epsilon {
+                println!("Found: {}", polynomial);
+            }
 
             let pair = (chromosome.clone(), mean_squared_err);
 
@@ -83,53 +103,50 @@ fn main() {
         .map(|(idx, (chromosome, _))| ChromosomeWithFitness::from_chromosome_and_fitness(chromosome.clone(), idx as u32))
         .collect::<HashSet<ChromosomeWithFitness<u32>>>();
 
-        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(5), 0.1f32);
-
-        // Create a new plot for this iteration
-        let root_area = BitMapBackend::new("plot_iter_{}.png", (640, 480)).into_drawing_area();
-        root_area.fill(&WHITE).unwrap();
-
-        let mut chart = ChartBuilder::on(&root_area)
-            .caption(format!("Iteration {}", plot_iter), ("sans-serif", 20).into_font())
-            .set_label_area_size(LabelAreaPosition::Left, 40)
-            .set_label_area_size(LabelAreaPosition::Bottom, 40)
-            .build_cartesian_2d(0f32..100f32, 0f32..10000f32)
-            .unwrap();
-
-        chart
-            .configure_mesh()
-            .x_desc("Input")
-            .y_desc("Output")
-            .draw()
-            .unwrap();
-
-        // Plot the data points
-        chart
-            .draw_series(
-                data
-                    .iter()
-                    .map(|(x, y)| Circle::new((*x.first().unwrap(), *y), 2, &RED)),
-            )
-            .unwrap();
-
-        // Plot the best polynomial found so far
-        let best_chromosome = &chromosomes_with_error.first().unwrap().0;
-        let best_polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, best_chromosome);
-
-        chart
-            .draw_series(
-                data
-                    .iter()
-                    .map(|(x, _)| {
-                        let y = best_polynomial.evaluate(x);
-                        Circle::new((*x.first().unwrap(), y), 2, &BLUE)
-                    }),
-            )
-            .unwrap();
-
-        // Save the plot to a file
-        root_area.present().unwrap();
+        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(5), 0.1f32, 0.1f32);
 
         plot_iter += 1;
     }
+}
+
+fn plot_result(data: &Vec<(Vec<f32>, f32)>, polynomial: &Polynomial) {
+    let root_area = BitMapBackend::new("plot_iter_{}.png", (640, 480)).into_drawing_area();
+    root_area.fill(&WHITE).unwrap();
+
+    let mut chart = ChartBuilder::on(&root_area)
+        .caption(format!("Result"), ("sans-serif", 20).into_font())
+        .set_label_area_size(LabelAreaPosition::Left, 40)
+        .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .build_cartesian_2d(0f32..10f32, -2f32..2f32)
+        .unwrap();
+
+    chart
+        .configure_mesh()
+        .x_desc("Input")
+        .y_desc("Output")
+        .draw()
+        .unwrap();
+
+    // Plot the data points
+    chart
+        .draw_series(
+            data
+                .iter()
+                .map(|(x, y)| Circle::new((*x.first().unwrap(), *y), 2, &RED)),
+        )
+        .unwrap();
+
+    chart
+        .draw_series(
+            data
+                .iter()
+                .map(|(x, _)| {
+                    let y = polynomial.evaluate(x);
+                    Circle::new((*x.first().unwrap(), y), 2, &BLUE)
+                }),
+        )
+        .unwrap();
+
+    // Save the plot to a file
+    root_area.present().unwrap();
 }

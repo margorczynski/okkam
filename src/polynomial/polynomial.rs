@@ -86,7 +86,6 @@ impl Polynomial {
         let (constant_term, reduced_terms): (Vec<Term>, Vec<Term>) = self
         .terms
         .iter()
-        .filter(|term| term.coefficient.is_normal())
         .group_by(|term| term.degrees.clone())
         .into_iter()
         .map(|grp| {
@@ -96,11 +95,12 @@ impl Polynomial {
             .reduce(|reduced_term, term| Term { coefficient: reduced_term.coefficient + term.coefficient, degrees: reduced_term.degrees } )
             .unwrap()
         })
+        .filter(|term| term.coefficient.is_normal())
         .partition(|term| term.degrees.iter().all(|degree| *degree != 1u32));
 
         Polynomial {
             terms: reduced_terms,
-            constant: self.constant + constant_term.first().unwrap().coefficient
+            constant: self.constant + constant_term.first().map(|term| term.coefficient).unwrap_or(0.0f32)
         }
     }
 
@@ -245,12 +245,14 @@ mod tests {
 
     #[test]
     fn test_simplify() {
-        //2*x0^2*x1 + 3*x0^2*x1 - x1 + 5 + 1
+        //2*x0^2*x1 + 3*x0^2*x1 - 8*x0^2*x1 - x1 + x1 + 5 + 1
         let polynomial = Polynomial {
             terms: vec![
                 Term { coefficient: 2.0, degrees: vec![2, 1] },
                 Term { coefficient: 3.0, degrees: vec![2, 1] },
+                Term { coefficient: -8.0, degrees: vec![2, 1] },
                 Term { coefficient: -1.0, degrees: vec![0, 1] },
+                Term { coefficient: 1.0, degrees: vec![0, 1] },
                 Term { coefficient: 0.0, degrees: vec![1, 0] },
                 Term { coefficient: 5.0, degrees: vec![0, 0] },
             ],
@@ -262,8 +264,7 @@ mod tests {
         //5*x0^2*x1 - x1 + 6
         let expected_polynomial = Polynomial {
             terms: vec![
-                Term { coefficient: 5.0, degrees: vec![2, 1] },
-                Term { coefficient: -1.0, degrees: vec![0, 1] },
+                Term { coefficient: -3.0, degrees: vec![2, 1] },
             ],
             constant: 6.0,
         };

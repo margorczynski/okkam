@@ -50,12 +50,13 @@ pub fn generate_initial_population(
     population
 }
 
-pub fn evolve<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send + Into<f64> + Display>(
+pub fn evolve<T: PartialEq + PartialOrd + Clone + Eq + Send>(
     chromosomes_with_fitness: &HashSet<ChromosomeWithFitness<T>>,
     selection_strategy: SelectionStrategy,
+    mutation_rate: f32,
     elite_factor: f32,
 ) -> HashSet<Chromosome> {
-    //debug!("Evolve new generation - chromosomes_with_fitness.len(): {}, selection_strategy: {:?}, mutation_rate: {}, elite_factor: {}", chromosomes_with_fitness.len(), selection_strategy, mutation_rate, elite_factor);
+    debug!("Evolve new generation - chromosomes_with_fitness.len(): {}, selection_strategy: {:?}, mutation_rate: {}, elite_factor: {}", chromosomes_with_fitness.len(), selection_strategy, mutation_rate, elite_factor);
     let mut new_generation: HashSet<Chromosome> = HashSet::new();
 
     let elite_amount = ((chromosomes_with_fitness.len() as f32) * elite_factor).floor() as usize;
@@ -76,14 +77,11 @@ pub fn evolve<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send + Into<f64> + 
 
     new_generation.par_extend(elite);
 
-    let fitness_max: f64 = chromosomes_with_fitness_ordered.iter().max().unwrap().clone().fitness.into();
-    let fitness_avg: f64 = chromosomes_with_fitness_ordered.iter().map(|cwf| cwf.fitness.clone().into()).sum::<f64>() / chromosomes_with_fitness_ordered.len() as f64;
-
     let offspring = (0..((chromosomes_with_fitness.len() - new_generation.len()) / 2))
         .into_par_iter()
         .map(|_| {
             let parents = select(chromosomes_with_fitness, &selection_strategy);
-            let (offspring_1, offspring_2) = crossover(parents, 0.7, 1.0, 0.05, 0.5, fitness_avg, fitness_max);
+            let (offspring_1, offspring_2) = crossover(parents, 1.0f32, mutation_rate);
             vec![offspring_1, offspring_2]
         }).flatten();
 
@@ -93,7 +91,7 @@ pub fn evolve<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send + Into<f64> + 
     //TODO: Use Vec instead and allow duplicates?
     while new_generation.len() != chromosomes_with_fitness.len() {
         let parents = select(chromosomes_with_fitness, &selection_strategy);
-        let offspring = crossover(parents, 0.7, 1.0, 0.05, 0.5, fitness_avg, fitness_max);
+        let offspring = crossover(parents, 1.0f32, mutation_rate);
 
         new_generation.insert(offspring.0);
         if new_generation.len() == chromosomes_with_fitness.len() {
@@ -110,10 +108,10 @@ pub fn evolve<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send + Into<f64> + 
     new_generation
 }
 
-fn select<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send>(
+fn select<T: PartialEq + PartialOrd + Clone + Eq + Send>(
     chromosomes_with_fitness: &HashSet<ChromosomeWithFitness<T>>,
     selection_strategy: &SelectionStrategy,
-) -> (ChromosomeWithFitness<T>, ChromosomeWithFitness<T>) {
+) -> (Chromosome, Chromosome) {
     match *selection_strategy {
         SelectionStrategy::Tournament(tournament_size) => {
             let mut rng = thread_rng();
@@ -125,61 +123,34 @@ fn select<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send>(
             let first = get_winner(&chromosomes_with_fitness);
             let second= get_winner(&chromosomes_with_fitness);
 
-            (first, second)
+            (first.chromosome, second.chromosome)
         }
     }
 }
 
-fn crossover<T: PartialEq + PartialOrd + Ord + Clone + Eq + Send + Into<f64> + Display>(
-    parents: (ChromosomeWithFitness<T>, ChromosomeWithFitness<T>),
-    crossover_rate_min: f64,
-    crossover_rate_max: f64,
-    mutation_rate_min: f64,
-    mutation_rate_max: f64,
-    fitness_avg: f64,
-    fitness_max: f64
+fn crossover(
+    parents: (Chromosome, Chromosome),
+    _crossover_rate: f32,
+    mutation_rate: f32,
 ) -> (Chromosome, Chromosome) {
     let mut rng = thread_rng();
 
-    let chromosome_len = parents.0.chromosome.genes.len();
+    let chromosome_len = parents.0.genes.len();
 
-    let fitness_parents = max(parents.0.fitness.clone(), parents.1.fitness.clone()).into();
-    let fitness_delta = fitness_max - fitness_parents;
+    let crossover_point = rng.gen_range(1..(chromosome_len - 1));
 
-    let mut crossover_rate: f64= crossover_rate_max;
-    let mut mutation_rate: f64 = mutation_rate_min;
-
-    if fitness_parents >= fitness_avg || fitness_avg == fitness_max {
-        crossover_rate = crossover_rate_max;
-    } else {
-        crossover_rate = crossover_rate_min * (fitness_delta / (fitness_max - fitness_avg));
-    }
-
-    if fitness_parents < fitness_avg || fitness_avg == fitness_max {
-        mutation_rate = mutation_rate_max;
-    } else {
-        mutation_rate = mutation_rate_min * (fitness_delta / (fitness_max - fitness_avg));
-    }
+    let (fst_left, fst_right) = parents.0.genes.split_at(crossover_point);
+    let (snd_left, snd_right) = parents.1.genes.split_at(crossover_point);
 
     let mut fst_child_genes: Vec<bool> = Vec::new();
     let mut snd_child_genes: Vec<bool> = Vec::new();
 
-    if crossover_rate == 1.0f64 || rng.gen::<f64>() <= crossover_rate {
-        let crossover_point = rng.gen_range(1..(chromosome_len - 1));
-        let (fst_left, fst_right) = parents.0.chromosome.genes.split_at(crossover_point);
-        let (snd_left, snd_right) = parents.1.chromosome.genes.split_at(crossover_point);
+    fst_child_genes.extend(fst_left);
+    fst_child_genes.extend(snd_right);
 
-        fst_child_genes.extend(fst_left);
-        fst_child_genes.extend(snd_right);
+    snd_child_genes.extend(fst_right);
+    snd_child_genes.extend(snd_left);
 
-        snd_child_genes.extend(fst_right);
-        snd_child_genes.extend(snd_left);
-    } else {
-        fst_child_genes = parents.0.chromosome.genes;
-        snd_child_genes = parents.1.chromosome.genes;
-    }
-
-    //Mutation
     let binomial = Binomial::new(chromosome_len as u64, mutation_rate as f64).unwrap();
     let uniform = Uniform::new(0, chromosome_len);
 
@@ -259,7 +230,7 @@ mod evolution_tests {
             ),
         ]);
 
-        let result = evolve(&chromosomes_with_fitness, selection_strategy, 0.5);
+        let result = evolve(&chromosomes_with_fitness, selection_strategy, 0.5, 0.5);
 
         debug!("Evo test result: {:?}", result);
 
@@ -297,7 +268,7 @@ mod evolution_tests {
 
         let result = select(&chromosomes_with_fitness, &selection_strategy);
 
-        let results_set: HashSet<Chromosome> = HashSet::from_iter(vec![result.0.chromosome, result.1.chromosome]);
+        let results_set: HashSet<Chromosome> = HashSet::from_iter(vec![result.0, result.1]);
 
         assert!(results_set.contains(&Chromosome::from_genes(vec![true, true, true, true])));
         assert!(results_set.contains(&Chromosome::from_genes(vec![true, true, true, true])));
