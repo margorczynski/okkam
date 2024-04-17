@@ -4,11 +4,12 @@ mod ga;
 mod polynomial;
 mod common;
 
-use std::io::{Result};
+use std::io::Result;
 use std::collections::HashSet;
 use std::cmp::Ordering;
 
-
+use rayon::prelude::*;
+use tokio::time::Instant;
 
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
@@ -20,53 +21,39 @@ fn main() -> Result<()> {
         .map(|x| (vec![x as f32, x as f32 + 2.0f32], (x as f32).powi(2)*(x as f32 + 2.0f32 ).sqrt() + 4.0 * (x as f32).ln()))
         .collect();
 
-    let terms_num = 8;
-    let degree_bits_num = 5;
-    let degree_num = 1;
+    let terms_num = 14;
+    let degree_bits_num = 2;
+    let degree_num = 2;
 
-    let epsilon = 0.05;
+    let population_size = 1024;
+    let tournament_size = 15;
+    let mutation_rate = 0.1f32;
+    let elite_factor = 0.1f32;
 
     let chromosome_bit_len = Polynomial::get_bits_needed(terms_num, degree_bits_num, degree_num);
 
-    let mut population = generate_initial_population(512, chromosome_bit_len);
+    let mut population = generate_initial_population(population_size, chromosome_bit_len);
 
-    let mut plot_iter = 0;
+    let mut generation_idx = 0;
 
     let mut lowest_err = f32::INFINITY;
+
+    let loop_start = Instant::now();
+
+    println!("terms_num={}, degree_bits_num={}, degree_num={}, chromosome_bit_len={}", terms_num, degree_bits_num, degree_num, chromosome_bit_len);
 
     //GA loop
     loop {
         //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
-        let mut chromosomes_with_error: Vec<(Chromosome, f32)> = Vec::new();
-        for chromosome in &population {
-            //TODO: Simplify makes it converge much slower and stop converging faster, why?
-            let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);//.simplify();
-            let mut mean_squared_err = 0.0;
-            for (inputs, output) in &data {
-                let res = polynomial.evaluate(inputs);
-                let diff = output - res;
+        let mut chromosomes_with_error: Vec<(&Chromosome, f32)> = population
+        .par_iter()
+        .map(|chromosome| {
+            let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);
+            (chromosome, data.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).powi(2)).sum::<f32>() / data.len() as f32)
+        })
+        .collect();
 
-                mean_squared_err += diff * diff;
-            }
-
-            mean_squared_err = mean_squared_err/ (data.len() as f32);
-
-            if mean_squared_err < lowest_err {
-                let rel_error = mean_squared_err / data.iter().map(|d| d.1).sum::<f32>();
-                lowest_err = mean_squared_err;
-                println!("ITER {}, Lowest: {}, rel_error: {:.2}%", plot_iter, lowest_err, rel_error * 100.0f32);
-            }
-
-            if mean_squared_err <= epsilon {
-                println!("Found: {}", polynomial);
-            }
-
-            let pair = (chromosome.clone(), mean_squared_err);
-
-            chromosomes_with_error.push(pair);
-        }
-
-        chromosomes_with_error.sort_by(|a, b| {
+        chromosomes_with_error.par_sort_by(|a, b| {
             let a_is_nan = a.1.is_nan();
             let b_is_nan = b.1.is_nan();
         
@@ -81,16 +68,25 @@ fn main() -> Result<()> {
             }
         });
 
+        let curr_lower_err = chromosomes_with_error.first().unwrap().1;
+
+        if curr_lower_err < lowest_err {
+            let rel_error = curr_lower_err / data.iter().map(|d| d.1).sum::<f32>();
+            lowest_err = curr_lower_err;
+            let avg_time = loop_start.elapsed() / (generation_idx + 1);
+            println!("Generation: {}, Lowest Error: {}, Error (%): {:.2}%, Avg Time per loop: {:?}", generation_idx, lowest_err, rel_error * 100.0f32, avg_time);
+        }
+
         let chromosomes_with_fitness: HashSet<ChromosomeWithFitness<u32>> =
         chromosomes_with_error
         .iter()
         .rev() //Reverse so the ones with the biggest error get the lowest index/rank
         .enumerate()
-        .map(|(idx, (chromosome, _))| ChromosomeWithFitness::from_chromosome_and_fitness(chromosome.clone(), idx as u32))
+        .map(|(idx, (chromosome, _))| ChromosomeWithFitness::from_chromosome_and_fitness((*chromosome).clone(), idx as u32))
         .collect::<HashSet<ChromosomeWithFitness<u32>>>();
 
-        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(5), 0.1f32, 0.1f32);
+        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(tournament_size), mutation_rate, elite_factor);
 
-        plot_iter += 1;
+        generation_idx += 1;
     }
 }
