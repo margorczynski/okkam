@@ -15,7 +15,11 @@ pub struct Polynomial {
 }
 
 impl Polynomial {
-    // degree_bits_num: usize
+    
+    pub fn get_bits_needed(term_num: usize, degree_bits_num: usize, degree_num: usize) -> usize {
+        return term_num * (32 + degree_bits_num * degree_num) + 32;
+    }
+
     pub fn to_chromosome(&self, degree_bits_num: usize) -> Chromosome {
         let mut genes = Vec::new();
 
@@ -120,7 +124,7 @@ impl PartialEq for Polynomial {
         }
 
         for (self_term, other_term) in self.terms.iter().zip(other.terms.iter()) {
-            if(self_term.coefficient != other_term.coefficient) {
+            if self_term.coefficient != other_term.coefficient {
                 return false;
             }
 
@@ -338,7 +342,7 @@ mod tests {
         //Constant is 32, total = 44 * 3 + 32 = 164 bits
 
         // Check that the chromosome has the correct length
-        assert_eq!(chromosome.genes.len(), 164);
+        assert_eq!(chromosome.genes.len(), Polynomial::get_bits_needed(3, 4, 3));
         assert_eq!(poly, from_chromosome);
     }
 }

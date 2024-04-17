@@ -4,31 +4,82 @@ mod ga;
 mod polynomial;
 mod common;
 
-use crate::polynomial::polynomial::{Term, Polynomial};
+use std::collections::HashSet;
+use std::cmp::Ordering;
+
+use crate::polynomial::polynomial::Polynomial;
+use crate::ga::chromosome::Chromosome;
+use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
+use crate::ga::ga::*;
 
 fn main() {
-    let data: Vec<(f32, f32)> = (0..=100)
-        .map(|x| (x as f32, (x as f32).powi(2)))
+    let data: Vec<(Vec<f32>, f32)> = (0..=100)
+        .map(|x| (vec![x as f32], (x as f32).powi(2)))
         .collect();
 
     let terms_num = 5;
     let degree_bits_num = 3;
+    let degree_num = 1;
 
-    for (input, result) in &data {
+    let max_err = 0.05;
+
+    let chromosome_bit_len = Polynomial::get_bits_needed(terms_num, degree_bits_num, degree_num);
+
+    let mut population = generate_initial_population(128, chromosome_bit_len);
+
+    //GA loop
+    loop {
+        //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
+        let mut chromosomes_with_error: Vec<(Chromosome, f32)> = Vec::new();
+        let mut err_accum = 0.0f32;
+        for chromosome in &population {
+            let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);
+            let mut mean_squared_err = 0.0;
+            for (inputs, output) in &data {
+                let res = polynomial.evaluate(inputs);
+                let diff = output - res;
+
+                mean_squared_err += diff * diff;
+            }
+
+            mean_squared_err = mean_squared_err/ (data.len() as f32);
+
+            if(mean_squared_err <= max_err) {
+                println!("Found: {}", polynomial);
+            }
+
+            err_accum += mean_squared_err;
+
+            let pair = (chromosome.clone(), mean_squared_err);
+
+            chromosomes_with_error.push(pair);
+        }
+
+        println!("Average sq error for population: {}", err_accum/(population.len() as f32));
+
+        chromosomes_with_error.sort_by(|a, b| {
+            let a_is_nan = a.1.is_nan();
+            let b_is_nan = b.1.is_nan();
+        
+            if a_is_nan && b_is_nan {
+                Ordering::Equal
+            } else if a_is_nan {
+                Ordering::Greater
+            } else if b_is_nan {
+                Ordering::Less
+            } else {
+                a.1.partial_cmp(&b.1).unwrap()
+            }
+        });
+
+        let chromosomes_with_fitness: HashSet<ChromosomeWithFitness<u32>> =
+        chromosomes_with_error
+        .iter()
+        .rev() //Reverse so the ones with the biggest error get the lowest index/rank
+        .enumerate()
+        .map(|(idx, (chromosome, _))| ChromosomeWithFitness::from_chromosome_and_fitness(chromosome.clone(), idx as u32))
+        .collect::<HashSet<ChromosomeWithFitness<u32>>>();
+
+        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(5), 0.1f32);
     }
-
-    let poly = Polynomial {
-        terms: vec![
-            Term { coefficient: 4.0, degrees: vec![1] },
-        ],
-        constant: 3.0,
-    };
-
-    // 4*x^1 + 3
-
-    let chromosome = poly.to_chromosome(4);
-
-    let poly_from = Polynomial::from_chromosome(1, 4, 1, &chromosome);
-    
-    println!("Output: {}", chromosome);
 }
