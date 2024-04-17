@@ -15,15 +15,15 @@ use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
 use crate::ga::ga::*;
 
 fn main() {
-    let data: Vec<(Vec<f32>, f32)> = (0..=100)
-        .map(|x| (vec![x as f32], (x as f32).powi(2)))
+    let data: Vec<(Vec<f32>, f32)> = (1..=100)
+        .map(|x| (vec![x as f32], (x as f32).ln()))
         .collect();
 
     let terms_num = 5;
     let degree_bits_num = 3;
     let degree_num = 1;
 
-    let max_err = 0.05;
+    let epsilon = 0.1;
 
     let chromosome_bit_len = Polynomial::get_bits_needed(terms_num, degree_bits_num, degree_num);
 
@@ -48,7 +48,7 @@ fn main() {
 
             mean_squared_err = mean_squared_err/ (data.len() as f32);
 
-            if(mean_squared_err <= max_err) {
+            if(mean_squared_err <= epsilon) {
                 println!("Found: {}", polynomial);
                 return;
             }

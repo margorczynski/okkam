@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 
+use itertools::Itertools;
+
 use crate::ga::chromosome::Chromosome;
 
 #[derive(Clone)]
@@ -13,6 +15,11 @@ pub struct Polynomial {
     pub terms: Vec<Term>,
     pub constant: f32,
 }
+
+//TODO: Implement simplify - reduce terms
+//1 combine terms (add coefficients + remove redundant term)
+//2 Remove terms with 0.0 coeficcient
+//3 Combine constant terms (where all degrees = 0) with constant
 
 impl Polynomial {
     
@@ -73,6 +80,28 @@ impl Polynomial {
         let constant = f32::from_bits(Self::bits_to_u32(&constant_bits_vec));
     
         Polynomial { terms, constant }
+    }
+
+    pub fn simplify(&self) -> Polynomial {
+        let (constant_term, reduced_terms): (Vec<Term>, Vec<Term>) = self
+        .terms
+        .iter()
+        .filter(|term| term.coefficient.is_normal())
+        .group_by(|term| term.degrees.clone())
+        .into_iter()
+        .map(|grp| {
+            grp
+            .1
+            .cloned()
+            .reduce(|reduced_term, term| Term { coefficient: reduced_term.coefficient + term.coefficient, degrees: reduced_term.degrees } )
+            .unwrap()
+        })
+        .partition(|term| term.degrees.iter().all(|degree| *degree != 1u32));
+
+        Polynomial {
+            terms: reduced_terms,
+            constant: self.constant + constant_term.first().unwrap().coefficient
+        }
     }
 
     pub fn evaluate(&self, inputs: &[f32]) -> f32 {
@@ -213,6 +242,34 @@ impl Debug for Polynomial {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_simplify() {
+        //2*x0^2*x1 + 3*x0^2*x1 - x1 + 5 + 1
+        let polynomial = Polynomial {
+            terms: vec![
+                Term { coefficient: 2.0, degrees: vec![2, 1] },
+                Term { coefficient: 3.0, degrees: vec![2, 1] },
+                Term { coefficient: -1.0, degrees: vec![0, 1] },
+                Term { coefficient: 0.0, degrees: vec![1, 0] },
+                Term { coefficient: 5.0, degrees: vec![0, 0] },
+            ],
+            constant: 1.0,
+        };
+
+        let simplified = polynomial.simplify();
+
+        //5*x0^2*x1 - x1 + 6
+        let expected_polynomial = Polynomial {
+            terms: vec![
+                Term { coefficient: 5.0, degrees: vec![2, 1] },
+                Term { coefficient: -1.0, degrees: vec![0, 1] },
+            ],
+            constant: 6.0,
+        };
+
+        assert_eq!(simplified, expected_polynomial);
+    }
 
     #[test]
     fn test_evaluate() {
