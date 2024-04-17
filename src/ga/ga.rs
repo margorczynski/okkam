@@ -1,8 +1,8 @@
-use std::cmp::max;
-use std::collections::HashSet;
-use std::fmt::Display;
 
-use log::{debug, info};
+use std::collections::HashSet;
+
+
+use log::{debug};
 use rand::prelude::*;
 use rand::{Rng, SeedableRng};
 use rand_distr::Binomial;

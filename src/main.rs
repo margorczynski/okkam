@@ -4,18 +4,11 @@ mod ga;
 mod polynomial;
 mod common;
 
-use std::io::{stdout, Result};
+use std::io::{Result};
 use std::collections::HashSet;
 use std::cmp::Ordering;
 
-use crossterm::{
-    event::{self, KeyCode, KeyEventKind},
-    terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
-        LeaveAlternateScreen,
-    },
-    ExecutableCommand,
-};
+
 
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;

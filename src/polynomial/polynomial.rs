@@ -57,7 +57,7 @@ impl Polynomial {
     
         // Calculate the number of bits required for each term
         let coefficient_bits = 32; // 32 bits for f32
-        let degree_bits = degree_bits_num; // 32 bits for u32
+        let _degree_bits = degree_bits_num; // 32 bits for u32
     
         for _ in 0..term_num {
             let mut degrees: Vec<u8> = Vec::with_capacity(degree_num);
@@ -232,7 +232,7 @@ impl Display for Term {
 
 impl Display for Polynomial {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut poly_str = String::new();
+        let _poly_str = String::new();
 
         let mut term_strings: Vec<String> = self.terms
         .iter()
