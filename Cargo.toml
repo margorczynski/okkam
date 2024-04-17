@@ -16,3 +16,4 @@ tokio-executor-trait = "2.0.1"
 tokio-reactor-trait = "1.1.0"
 futures = "0.3.28"
 config = "0.13.3"
+plotters = { version = "0.3.4", features = ["plotters-backend"] }

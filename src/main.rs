@@ -7,6 +7,8 @@ mod common;
 use std::collections::HashSet;
 use std::cmp::Ordering;
 
+use plotters::prelude::*;
+
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
@@ -27,6 +29,8 @@ fn main() {
 
     let mut population = generate_initial_population(128, chromosome_bit_len);
 
+    let mut plot_iter = 0;
+
     //GA loop
     loop {
         //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
@@ -46,6 +50,7 @@ fn main() {
 
             if(mean_squared_err <= max_err) {
                 println!("Found: {}", polynomial);
+                return;
             }
 
             err_accum += mean_squared_err;
@@ -54,8 +59,6 @@ fn main() {
 
             chromosomes_with_error.push(pair);
         }
-
-        println!("Average sq error for population: {}", err_accum/(population.len() as f32));
 
         chromosomes_with_error.sort_by(|a, b| {
             let a_is_nan = a.1.is_nan();
@@ -81,5 +84,52 @@ fn main() {
         .collect::<HashSet<ChromosomeWithFitness<u32>>>();
 
         population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(5), 0.1f32);
+
+        // Create a new plot for this iteration
+        let root_area = BitMapBackend::new("plot_iter_{}.png", (640, 480)).into_drawing_area();
+        root_area.fill(&WHITE).unwrap();
+
+        let mut chart = ChartBuilder::on(&root_area)
+            .caption(format!("Iteration {}", plot_iter), ("sans-serif", 20).into_font())
+            .set_label_area_size(LabelAreaPosition::Left, 40)
+            .set_label_area_size(LabelAreaPosition::Bottom, 40)
+            .build_cartesian_2d(0f32..100f32, 0f32..10000f32)
+            .unwrap();
+
+        chart
+            .configure_mesh()
+            .x_desc("Input")
+            .y_desc("Output")
+            .draw()
+            .unwrap();
+
+        // Plot the data points
+        chart
+            .draw_series(
+                data
+                    .iter()
+                    .map(|(x, y)| Circle::new((*x.first().unwrap(), *y), 2, &RED)),
+            )
+            .unwrap();
+
+        // Plot the best polynomial found so far
+        let best_chromosome = &chromosomes_with_error.first().unwrap().0;
+        let best_polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, best_chromosome);
+
+        chart
+            .draw_series(
+                data
+                    .iter()
+                    .map(|(x, _)| {
+                        let y = best_polynomial.evaluate(x);
+                        Circle::new((*x.first().unwrap(), y), 2, &BLUE)
+                    }),
+            )
+            .unwrap();
+
+        // Save the plot to a file
+        root_area.present().unwrap();
+
+        plot_iter += 1;
     }
 }
