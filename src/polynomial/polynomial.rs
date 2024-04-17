@@ -7,7 +7,7 @@ use crate::ga::chromosome::Chromosome;
 #[derive(Clone)]
 pub struct Term {
     pub coefficient: f32,
-    pub degrees: Vec<u32>
+    pub degrees: Vec<u8>
 }
 
 #[derive(Clone)]
@@ -38,7 +38,7 @@ impl Polynomial {
             
             // Encode the degrees
             for degree in &term.degrees {
-                let degree_bit_vec = Self::bits_to_bit_vec(degree);
+                let degree_bit_vec = Self::bits_to_bit_vec_u8(degree);
                 let degree_bit_vec_limited = degree_bit_vec.iter().rev().take(degree_bits_num).rev();
                 genes.extend(degree_bit_vec_limited);
             }
@@ -60,7 +60,7 @@ impl Polynomial {
         let degree_bits = degree_bits_num; // 32 bits for u32
     
         for _ in 0..term_num {
-            let mut degrees = Vec::with_capacity(degree_num);
+            let mut degrees: Vec<u8> = Vec::with_capacity(degree_num);
             // Extract the coefficient bits
             let coefficient_bits_vec = chromosome.genes[gene_index..(gene_index + coefficient_bits)].to_vec();
             gene_index += coefficient_bits;
@@ -69,7 +69,7 @@ impl Polynomial {
             for _ in 0..degree_num {
                 let degree_bits_vec = chromosome.genes[gene_index..(gene_index + degree_bits_num)].to_vec();
                 gene_index += degree_bits_num;
-                degrees.push(Self::bits_to_u32(&degree_bits_vec));
+                degrees.push(Self::bits_to_u8(&degree_bits_vec));
             }
     
             terms.push(Term { coefficient, degrees });
@@ -96,7 +96,7 @@ impl Polynomial {
             .unwrap()
         })
         .filter(|term| term.coefficient.is_normal())
-        .partition(|term| term.degrees.iter().all(|degree| *degree != 1u32));
+        .partition(|term| term.degrees.iter().all(|degree| *degree != 1u8));
 
         Polynomial {
             terms: reduced_terms,
@@ -131,7 +131,27 @@ impl Polynomial {
         result
     }
 
+    fn bits_to_bit_vec_u8(bits: &u8) -> Vec<bool> {
+        let mut result = Vec::new();
+    
+        for i in (0..8).rev() {
+            result.push(((bits >> i) & 1) == 1);
+        }
+    
+        result
+    }
+
     fn bits_to_u32(bits: &[bool]) -> u32 {
+        let mut result = 0;
+        for (i, &bit) in bits.iter().enumerate() {
+            if bit {
+                result |= 1 << (bits.len() - 1 - i);
+            }
+        }
+        result
+    }
+
+    fn bits_to_u8(bits: &[bool]) -> u8 {
         let mut result = 0;
         for (i, &bit) in bits.iter().enumerate() {
             if bit {
