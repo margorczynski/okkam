@@ -11,11 +11,12 @@ use std::collections::HashSet;
 use std::cmp::Ordering;
 
 use clap::Parser;
+use log::info;
 use rayon::prelude::*;
 use tokio::time::Instant;
 
 use crate::config::okkam_config::OkkamConfig;
-use crate::util::util::dataset_from_csv;
+use crate::util::util::{dataset_from_csv, setup};
 use crate::util::args::Args;
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
@@ -25,26 +26,30 @@ use crate::ga::ga::*;
 fn main() -> Result<()> {
     let args = Args::parse();
 
+
+    //Load config
     let config = OkkamConfig::new(&args.config_path).unwrap();
     let ga_confg = config.ga;
     let polynomial_config = config.polynomial;
 
+    //Setup logging
+    setup(config.log_level.0);
+
+    //Load dataset from CSV file
     let csv_file = File::open(config.dataset_path)?;
     let data = dataset_from_csv(csv_file, false, ',').unwrap();
 
-    let degree_num = data.first().unwrap().0.len();
+    //Get the number of variables and calculate chromosome bit length
+    let variable_num = data.first().unwrap().0.len();
+    let chromosome_bit_len = Polynomial::get_bits_needed(polynomial_config.terms_num, polynomial_config.degree_bits_num, variable_num);
 
-    let chromosome_bit_len = Polynomial::get_bits_needed(polynomial_config.terms_num, polynomial_config.degree_bits_num, degree_num);
-
+    //Generate initial population and initialize basic values
     let mut population = generate_initial_population(ga_confg.population_size, chromosome_bit_len);
-
     let mut generation_idx = 0;
-
     let mut lowest_err: f32 = f32::INFINITY;
-
     let loop_start = Instant::now();
 
-    println!("terms_num={}, degree_bits_num={}, degree_num={}, chromosome_bit_len={}", polynomial_config.terms_num, polynomial_config.degree_bits_num, degree_num, chromosome_bit_len);
+    info!("terms_num={}, degree_bits_num={}, degree_num={}, chromosome_bit_len={}", polynomial_config.terms_num, polynomial_config.degree_bits_num, variable_num, chromosome_bit_len);
 
     //GA loop
     loop {
@@ -52,7 +57,7 @@ fn main() -> Result<()> {
         let mut chromosomes_with_error: Vec<(&Chromosome, f32)> = population
         .par_iter()
         .map(|chromosome| {
-            let polynomial = Polynomial::from_chromosome(polynomial_config.terms_num, polynomial_config.degree_bits_num, degree_num, chromosome);
+            let polynomial = Polynomial::from_chromosome(polynomial_config.terms_num, polynomial_config.degree_bits_num, variable_num, chromosome);
             (chromosome, data.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).powi(2)).sum::<f32>().sqrt() / data.len() as f32)
         })
         .collect();

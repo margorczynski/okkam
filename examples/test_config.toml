@@ -1,3 +1,4 @@
+log_level = "INFO"
 dataset_path = "examples/test_dataset.csv"
 
 [ga]

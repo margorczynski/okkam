@@ -19,8 +19,8 @@ pub struct Polynomial {
 
 impl Polynomial {
     
-    pub fn get_bits_needed(term_num: usize, degree_bits_num: usize, degree_num: usize) -> usize {
-        return term_num * (16 + degree_bits_num * degree_num) + 16;
+    pub fn get_bits_needed(term_num: usize, degree_bits_num: usize, variable_num: usize) -> usize {
+        return term_num * (16 + degree_bits_num * variable_num) + 16;
     }
 
     #[allow(dead_code)]
@@ -48,7 +48,7 @@ impl Polynomial {
         Chromosome { genes }
     }
 
-    pub fn from_chromosome(term_num: usize, degree_bits_num: usize, degree_num: usize, chromosome: &Chromosome) -> Polynomial {
+    pub fn from_chromosome(term_num: usize, degree_bits_num: usize, variable_num: usize, chromosome: &Chromosome) -> Polynomial {
         let mut terms = Vec::new();
         let mut gene_index = 0;
     
@@ -56,13 +56,13 @@ impl Polynomial {
         let coefficient_bits = 16;
 
         for _ in 0..term_num {
-            let mut degrees: Vec<u8> = Vec::with_capacity(degree_num);
+            let mut degrees: Vec<u8> = Vec::with_capacity(variable_num);
             // Extract the coefficient bits
             let coefficient_bits_vec = chromosome.genes[gene_index..(gene_index + coefficient_bits)].to_vec();
             gene_index += coefficient_bits;
             let coefficient = f16::from_bits(bits_to_u16(&coefficient_bits_vec));
 
-            for _ in 0..degree_num {
+            for _ in 0..variable_num {
                 let degree_bits_vec = chromosome.genes[gene_index..(gene_index + degree_bits_num)].to_vec();
                 gene_index += degree_bits_num;
                 degrees.push(bits_to_u8(&degree_bits_vec));

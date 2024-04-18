@@ -14,10 +14,10 @@ type Dataset = Vec<(Vec<f32>, f32)>;
 
 static INIT: Once = Once::new();
 
-pub fn setup() {
+pub fn setup(log_level: LevelFilter) {
     INIT.call_once(|| {
         SimpleLogger::new()
-            .with_level(LevelFilter::Info)
+            .with_level(log_level)
             .without_timestamps()
             .init()
             .unwrap();

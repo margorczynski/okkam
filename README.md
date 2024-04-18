@@ -41,6 +41,9 @@ The compiled binary will be located in the target/release directory.
 The application is configured using a TOML, JSON, YAML, INI, RON, JSON5 file. Here's an example configuration using TOML:
 
 ```
+
+# The log level (Off, Error, Warn, Info, Debug, Trace)
+log_level = "INFO"
 # Path to the dataset file (CSV format)
 dataset_path = "data/dataset.csv"
 
