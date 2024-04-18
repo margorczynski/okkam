@@ -1,3 +1,4 @@
+[![CI](https://github.com/margorczynski/okkam/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/margorczynski/okkam/actions/workflows/ci.yml)
 # Okkam
 This application uses a Genetic Algorithm (GA) to perform symbolic regression on a given dataset. The goal is to find a polynomial function that best fits the data, minimizing the error between the predicted and actual output values.
 
