@@ -1,5 +1,6 @@
 extern crate core;
 
+mod config;
 mod ga;
 mod polynomial;
 mod util;
@@ -9,32 +10,33 @@ use std::io::Result;
 use std::collections::HashSet;
 use std::cmp::Ordering;
 
+use clap::Parser;
 use rayon::prelude::*;
 use tokio::time::Instant;
 
+use crate::config::okkam_config::OkkamConfig;
 use crate::util::util::dataset_from_csv;
+use crate::util::args::Args;
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
 use crate::ga::ga::*;
 
 fn main() -> Result<()> {
+    let args = Args::parse();
 
-    let test_data_file = File::open("/home/jsf/Code/okkam/tools/test_dataset.csv")?;
+    let config = OkkamConfig::new(&args.config_path).unwrap();
+    let ga_confg = config.ga;
+    let polynomial_config = config.polynomial;
+
+    let test_data_file = File::open(config.dataset_path)?;
     let data = dataset_from_csv(test_data_file, false, ',').unwrap();
 
-    let terms_num = 14;
-    let degree_bits_num = 3;
     let degree_num = data.first().unwrap().0.len();
 
-    let population_size = 1024;
-    let tournament_size = 15;
-    let mutation_rate = 0.1f32;
-    let elite_factor = 0.1f32;
+    let chromosome_bit_len = Polynomial::get_bits_needed(polynomial_config.terms_num, polynomial_config.degree_bits_num, degree_num);
 
-    let chromosome_bit_len = Polynomial::get_bits_needed(terms_num, degree_bits_num, degree_num);
-
-    let mut population = generate_initial_population(population_size, chromosome_bit_len);
+    let mut population = generate_initial_population(ga_confg.population_size, chromosome_bit_len);
 
     let mut generation_idx = 0;
 
@@ -42,7 +44,7 @@ fn main() -> Result<()> {
 
     let loop_start = Instant::now();
 
-    println!("terms_num={}, degree_bits_num={}, degree_num={}, chromosome_bit_len={}", terms_num, degree_bits_num, degree_num, chromosome_bit_len);
+    println!("terms_num={}, degree_bits_num={}, degree_num={}, chromosome_bit_len={}", polynomial_config.terms_num, polynomial_config.degree_bits_num, degree_num, chromosome_bit_len);
 
     //GA loop
     loop {
@@ -50,7 +52,7 @@ fn main() -> Result<()> {
         let mut chromosomes_with_error: Vec<(&Chromosome, f32)> = population
         .par_iter()
         .map(|chromosome| {
-            let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);
+            let polynomial = Polynomial::from_chromosome(polynomial_config.terms_num, polynomial_config.degree_bits_num, degree_num, chromosome);
             (chromosome, data.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).powi(2)).sum::<f32>().sqrt() / data.len() as f32)
         })
         .collect();
@@ -87,7 +89,7 @@ fn main() -> Result<()> {
         .map(|(idx, (chromosome, _))| ChromosomeWithFitness::from_chromosome_and_fitness((*chromosome).clone(), idx as u32))
         .collect::<HashSet<ChromosomeWithFitness<u32>>>();
 
-        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(tournament_size), mutation_rate, elite_factor);
+        population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(ga_confg.tournament_size), ga_confg.mutation_rate, ga_confg.elite_factor);
 
         generation_idx += 1;
     }

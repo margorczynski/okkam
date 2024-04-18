@@ -2,7 +2,7 @@
 use std::collections::HashSet;
 
 
-use log::{debug};
+use log::debug;
 use rand::prelude::*;
 use rand::{Rng, SeedableRng};
 use rand_distr::Binomial;
@@ -182,7 +182,8 @@ fn crossover(
 
 #[cfg(test)]
 mod evolution_tests {
-    use crate::util::*;
+
+    use crate::util::util::setup;
 
     use super::*;
 

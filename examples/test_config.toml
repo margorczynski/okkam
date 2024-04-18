@@ -1,0 +1,11 @@
+dataset_path = "examples/test_dataset.csv"
+
+[ga]
+population_size = 512
+tournament_size = 16
+mutation_rate = 0.1
+elite_factor = 0.1
+
+[polynomial]
+terms_num = 12
+degree_bits_num = 3
