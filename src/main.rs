@@ -29,8 +29,8 @@ fn main() -> Result<()> {
     let ga_confg = config.ga;
     let polynomial_config = config.polynomial;
 
-    let test_data_file = File::open(config.dataset_path)?;
-    let data = dataset_from_csv(test_data_file, false, ',').unwrap();
+    let csv_file = File::open(config.dataset_path)?;
+    let data = dataset_from_csv(csv_file, false, ',').unwrap();
 
     let degree_num = data.first().unwrap().0.len();
 
