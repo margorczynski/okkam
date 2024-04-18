@@ -3,8 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use itertools::Itertools;
 use half::prelude::*;
 
-use crate::util::*;
-use crate::ga::chromosome::Chromosome;
+use crate::{ga::chromosome::Chromosome, util::util::{bits_to_bit_vec_u16, bits_to_bit_vec_u8, bits_to_u16, bits_to_u8}};
 
 #[derive(Clone)]
 pub struct Term {
@@ -24,6 +23,7 @@ impl Polynomial {
         return term_num * (16 + degree_bits_num * degree_num) + 16;
     }
 
+    #[allow(dead_code)]
     pub fn to_chromosome(&self, degree_bits_num: usize) -> Chromosome {
         let mut genes = Vec::new();
 
@@ -78,6 +78,7 @@ impl Polynomial {
         Polynomial { terms, constant }
     }
 
+    #[allow(dead_code)]
     pub fn simplify(&self) -> Polynomial {
         let (constant_term, reduced_terms): (Vec<Term>, Vec<Term>) = self
         .terms

@@ -1,7 +1,8 @@
+#![allow(dead_code)]
+
 use std::{
     io::Read,
     error::Error,
-    fs::File,
     sync::Once,
 };
 

@@ -12,7 +12,7 @@ use std::cmp::Ordering;
 use rayon::prelude::*;
 use tokio::time::Instant;
 
-use crate::util::dataset_from_csv;
+use crate::util::util::dataset_from_csv;
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
