@@ -40,8 +40,7 @@ The compiled binary will be located in the target/release directory.
 ### Configuration
 The application is configured using a TOML, JSON, YAML, INI, RON, JSON5 file. Here's an example configuration using TOML:
 
-```
-
+```toml
 # The log level (Off, Error, Warn, Info, Debug, Trace)
 log_level = "INFO"
 # Path to the dataset file (CSV format)
@@ -60,7 +59,7 @@ elite_factor = 0.2
 [polynomial]
 # Number of terms in the polynomial
 terms_num = 5
-# Number of bits to represent the degree of each term (2^4 = 16 so the degree can be a maximum of 15 (2^4 - 1))
+# Number of bits to represent the degree of each variable (2^4 = 16 so the degree is in the range of 0..(2^4-1))
 degree_bits_num = 4
 ```
 

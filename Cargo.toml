@@ -1,9 +1,10 @@
 [package]
 name = "okkam"
 version = "0.1.0"
+authors = ["Marcin Gorczyński <margorczynski@gmail.com>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+repository = "https://github.com/margorczynski/okkam"
+license = "Apache 2.0"
 
 [dependencies]
 log = "0.4.17"
