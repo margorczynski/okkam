@@ -17,13 +17,18 @@ use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
 use crate::ga::ga::*;
 
 fn main() -> Result<()> {
-    let data: Vec<(Vec<f32>, f32)> = (1..=10)
-        .map(|x| (vec![x as f32, x as f32 + 2.0f32], (x as f32).powi(2)*(x as f32 + 2.0f32 ).sqrt() + 4.0 * (x as f32).ln()))
+
+    let test_func = |x: f32, y: f32, z: f32| -> f32 {
+        (x.powi(2) + x*y*z + y.sqrt()*z.ln() - z.powi(3)) * (x + y + z).sqrt()
+    };
+
+    let data: Vec<(Vec<f32>, f32)> = (1..=100)
+        .map(|x| (vec![x as f32, x as f32, x as f32], test_func(x as f32, x as f32, x as f32)))
         .collect();
 
     let terms_num = 14;
-    let degree_bits_num = 2;
-    let degree_num = 2;
+    let degree_bits_num = 3;
+    let degree_num = 3;
 
     let population_size = 1024;
     let tournament_size = 15;
@@ -49,7 +54,7 @@ fn main() -> Result<()> {
         .par_iter()
         .map(|chromosome| {
             let polynomial = Polynomial::from_chromosome(terms_num, degree_bits_num, degree_num, chromosome);
-            (chromosome, data.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).powi(2)).sum::<f32>() / data.len() as f32)
+            (chromosome, data.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).powi(2)).sum::<f32>().sqrt() / data.len() as f32)
         })
         .collect();
 
@@ -71,7 +76,7 @@ fn main() -> Result<()> {
         let curr_lower_err = chromosomes_with_error.first().unwrap().1;
 
         if curr_lower_err < lowest_err {
-            let rel_error = curr_lower_err / data.iter().map(|d| d.1).sum::<f32>();
+            let rel_error = curr_lower_err / data.iter().map(|d| d.1.powi(2)).sum::<f32>().sqrt();
             lowest_err = curr_lower_err;
             let avg_time = loop_start.elapsed() / (generation_idx + 1);
             println!("Generation: {}, Lowest Error: {}, Error (%): {:.3}%, Avg Time per loop: {:?}", generation_idx, lowest_err, rel_error * 100.0f32, avg_time);
