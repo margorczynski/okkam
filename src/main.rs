@@ -36,7 +36,7 @@ fn main() -> Result<()> {
 
     let mut generation_idx = 0;
 
-    let mut lowest_err = f32::INFINITY;
+    let mut lowest_err: f32 = f32::INFINITY;
 
     let loop_start = Instant::now();
 
@@ -74,7 +74,7 @@ fn main() -> Result<()> {
             let rel_error = curr_lower_err / data.iter().map(|d| d.1).sum::<f32>();
             lowest_err = curr_lower_err;
             let avg_time = loop_start.elapsed() / (generation_idx + 1);
-            println!("Generation: {}, Lowest Error: {}, Error (%): {:.2}%, Avg Time per loop: {:?}", generation_idx, lowest_err, rel_error * 100.0f32, avg_time);
+            println!("Generation: {}, Lowest Error: {}, Error (%): {:.3}%, Avg Time per loop: {:?}", generation_idx, lowest_err, rel_error * 100.0f32, avg_time);
         }
 
         let chromosomes_with_fitness: HashSet<ChromosomeWithFitness<u32>> =

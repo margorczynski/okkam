@@ -1,19 +1,20 @@
 use std::fmt::{Debug, Display, Formatter};
 
 use itertools::Itertools;
+use half::prelude::*;
 
 use crate::ga::chromosome::Chromosome;
 
 #[derive(Clone)]
 pub struct Term {
-    pub coefficient: f32,
+    pub coefficient: f16,
     pub degrees: Vec<u8>
 }
 
 #[derive(Clone)]
 pub struct Polynomial {
     pub terms: Vec<Term>,
-    pub constant: f32,
+    pub constant: f16,
 }
 
 //TODO: Implement simplify - reduce terms
@@ -24,7 +25,7 @@ pub struct Polynomial {
 impl Polynomial {
     
     pub fn get_bits_needed(term_num: usize, degree_bits_num: usize, degree_num: usize) -> usize {
-        return term_num * (32 + degree_bits_num * degree_num) + 32;
+        return term_num * (16 + degree_bits_num * degree_num) + 16;
     }
 
     pub fn to_chromosome(&self, degree_bits_num: usize) -> Chromosome {
@@ -34,7 +35,7 @@ impl Polynomial {
         for term in &self.terms {
             // Encode the coefficient
             let coefficient_bits = term.coefficient.to_bits();
-            genes.append(&mut Self::bits_to_bit_vec(&coefficient_bits));
+            genes.append(&mut Self::bits_to_bit_vec_u16(&coefficient_bits));
             
             // Encode the degrees
             for degree in &term.degrees {
@@ -46,7 +47,7 @@ impl Polynomial {
     
         // Encode the constant
         let constant_bits = self.constant.to_bits();
-        genes.append(&mut Self::bits_to_bit_vec(&constant_bits));
+        genes.append(&mut Self::bits_to_bit_vec_u16(&constant_bits));
     
         Chromosome { genes }
     }
@@ -56,15 +57,14 @@ impl Polynomial {
         let mut gene_index = 0;
     
         // Calculate the number of bits required for each term
-        let coefficient_bits = 32; // 32 bits for f32
-        let _degree_bits = degree_bits_num; // 32 bits for u32
-    
+        let coefficient_bits = 16;
+
         for _ in 0..term_num {
             let mut degrees: Vec<u8> = Vec::with_capacity(degree_num);
             // Extract the coefficient bits
             let coefficient_bits_vec = chromosome.genes[gene_index..(gene_index + coefficient_bits)].to_vec();
             gene_index += coefficient_bits;
-            let coefficient = f32::from_bits(Self::bits_to_u32(&coefficient_bits_vec));
+            let coefficient = f16::from_bits(Self::bits_to_u16(&coefficient_bits_vec));
 
             for _ in 0..degree_num {
                 let degree_bits_vec = chromosome.genes[gene_index..(gene_index + degree_bits_num)].to_vec();
@@ -77,7 +77,7 @@ impl Polynomial {
     
         // Extract the constant bits
         let constant_bits_vec = chromosome.genes[gene_index..].to_vec();
-        let constant = f32::from_bits(Self::bits_to_u32(&constant_bits_vec));
+        let constant = f16::from_bits(Self::bits_to_u16(&constant_bits_vec));
     
         Polynomial { terms, constant }
     }
@@ -100,16 +100,16 @@ impl Polynomial {
 
         Polynomial {
             terms: reduced_terms,
-            constant: self.constant + constant_term.first().map(|term| term.coefficient).unwrap_or(0.0f32)
+            constant: self.constant + constant_term.first().map(|term| term.coefficient).unwrap_or(f16::from_f32(0.0f32))
         }
     }
 
     pub fn evaluate(&self, inputs: &[f32]) -> f32 {
         //Assume inputs.len == every term.degrees len
-        let mut output = self.constant;
+        let mut output = self.constant.to_f32();
 
         for term in &self.terms {
-            let mut term_value = term.coefficient;
+            let mut term_value = term.coefficient.to_f32();
 
             for (degree, input) in term.degrees.iter().zip(inputs.iter()) {
                 term_value *= input.powi(*degree as i32);
@@ -121,10 +121,10 @@ impl Polynomial {
         output
     }
 
-    fn bits_to_bit_vec(bits: &u32) -> Vec<bool> {
+    fn bits_to_bit_vec_u16(bits: &u16) -> Vec<bool> {
         let mut result = Vec::new();
     
-        for i in (0..32).rev() {
+        for i in (0..16).rev() {
             result.push(((bits >> i) & 1) == 1);
         }
     
@@ -141,7 +141,7 @@ impl Polynomial {
         result
     }
 
-    fn bits_to_u32(bits: &[bool]) -> u32 {
+    fn bits_to_u16(bits: &[bool]) -> u16 {
         let mut result = 0;
         for (i, &bit) in bits.iter().enumerate() {
             if bit {
@@ -195,7 +195,7 @@ impl PartialEq for Polynomial {
 impl Display for Term {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut term_str = if self.coefficient.is_normal() {
-            if self.coefficient == 1.0f32 {
+            if self.coefficient == f16::from_f32(1.0) {
                 String::new()
             } else {
                 self.coefficient.to_string()
@@ -239,7 +239,7 @@ impl Display for Polynomial {
         .map(|term| term.to_string())
         .collect();
 
-        if self.constant != 0.0 {
+        if self.constant != f16::from_f32(0.0f32) {
             term_strings.push(self.constant.to_string());
         }
 
@@ -268,15 +268,15 @@ mod tests {
         //2*x0^2*x1 + 3*x0^2*x1 - 8*x0^2*x1 - x1 + x1 + 5 + 1
         let polynomial = Polynomial {
             terms: vec![
-                Term { coefficient: 2.0, degrees: vec![2, 1] },
-                Term { coefficient: 3.0, degrees: vec![2, 1] },
-                Term { coefficient: -8.0, degrees: vec![2, 1] },
-                Term { coefficient: -1.0, degrees: vec![0, 1] },
-                Term { coefficient: 1.0, degrees: vec![0, 1] },
-                Term { coefficient: 0.0, degrees: vec![1, 0] },
-                Term { coefficient: 5.0, degrees: vec![0, 0] },
+                Term { coefficient: f16::from_f32(2.0), degrees: vec![2, 1] },
+                Term { coefficient: f16::from_f32(3.0), degrees: vec![2, 1] },
+                Term { coefficient: f16::from_f32(-8.0), degrees: vec![2, 1] },
+                Term { coefficient: f16::from_f32(-1.0), degrees: vec![0, 1] },
+                Term { coefficient: f16::from_f32(1.0), degrees: vec![0, 1] },
+                Term { coefficient: f16::from_f32(0.0), degrees: vec![1, 0] },
+                Term { coefficient: f16::from_f32(5.0), degrees: vec![0, 0] },
             ],
-            constant: 1.0,
+            constant: f16::from_f32(1.0),
         };
 
         let simplified = polynomial.simplify();
@@ -284,9 +284,9 @@ mod tests {
         //5*x0^2*x1 - x1 + 6
         let expected_polynomial = Polynomial {
             terms: vec![
-                Term { coefficient: -3.0, degrees: vec![2, 1] },
+                Term { coefficient: f16::from_f32(-3.0), degrees: vec![2, 1] },
             ],
-            constant: 6.0,
+            constant: f16::from_f32(6.0),
         };
 
         assert_eq!(simplified, expected_polynomial);
@@ -296,16 +296,16 @@ mod tests {
     fn test_evaluate() {
         // Test case 1: Constant polynomial
         let poly = Polynomial {
-            constant: 5.0,
+            constant: f16::from_f32(5.0),
             terms: Vec::new(),
         };
         assert_eq!(poly.evaluate(&[]), 5.0);
 
         // Test case 2: Linear polynomial
         let poly = Polynomial {
-            constant: 2.0,
+            constant: f16::from_f32(2.0),
             terms: vec![Term {
-                coefficient: 3.0,
+                coefficient: f16::from_f32(3.0),
                 degrees: vec![1],
             }],
         };
@@ -313,14 +313,14 @@ mod tests {
 
         // Test case 3: Quadratic polynomial
         let poly = Polynomial {
-            constant: 1.0,
+            constant: f16::from_f32(1.0),
             terms: vec![
                 Term {
-                    coefficient: 2.0,
+                    coefficient: f16::from_f32(2.0),
                     degrees: vec![2],
                 },
                 Term {
-                    coefficient: 3.0,
+                    coefficient: f16::from_f32(3.0),
                     degrees: vec![1],
                 },
             ],
@@ -329,14 +329,14 @@ mod tests {
 
         // Test case 4: Multivariate polynomial
         let poly = Polynomial {
-            constant: 1.0,
+            constant: f16::from_f32(1.0),
             terms: vec![
                 Term {
-                    coefficient: 2.0,
+                    coefficient: f16::from_f32(2.0),
                     degrees: vec![1, 2],
                 },
                 Term {
-                    coefficient: 3.0,
+                    coefficient: f16::from_f32(3.0),
                     degrees: vec![2, 1],
                 },
             ],
@@ -348,46 +348,44 @@ mod tests {
     #[test]
     fn test_bits_to_bit_vec() {
         // Test case 1: All bits are 0
-        let bits = 0u32;
-        let expected = vec![false; 32];
-        assert_eq!(Polynomial::bits_to_bit_vec(&bits), expected);
+        let bits = 0u16;
+        let expected = vec![false; 16];
+        assert_eq!(Polynomial::bits_to_bit_vec_u16(&bits), expected);
 
         // Test case 2: All bits are 1
-        let bits = 0xFFFF_FFFFu32;
-        let expected = vec![true; 32];
-        assert_eq!(Polynomial::bits_to_bit_vec(&bits), expected);
+        let bits = 0xFFFFu16;
+        let expected = vec![true; 16];
+        assert_eq!(Polynomial::bits_to_bit_vec_u16(&bits), expected);
 
         // Test case 3: Alternating bits
-        let bits = 0x5555_5555u32;
+        let bits = 0x5555u16;
         let expected = vec![
             false, true, false, true, false, true, false, true, false, true, false, true, false,
-            true, false, true, false, true, false, true, false, true, false, true, false, true,
-            false, true, false, true, false, true,
+            true, false, true,
         ];
-        assert_eq!(Polynomial::bits_to_bit_vec(&bits), expected);
+        assert_eq!(Polynomial::bits_to_bit_vec_u16(&bits), expected);
     }
 
     #[test]
     fn test_bits_to_u32() {
         // Test case 1: Empty vector
         let bits: Vec<bool> = vec![];
-        assert_eq!(Polynomial::bits_to_u32(&bits), 0);
+        assert_eq!(Polynomial::bits_to_u16(&bits), 0);
 
         // Test case 2: All bits are false
-        let bits = vec![false; 32];
-        assert_eq!(Polynomial::bits_to_u32(&bits), 0);
+        let bits = vec![false; 16];
+        assert_eq!(Polynomial::bits_to_u16(&bits), 0);
 
         // Test case 3: All bits are true
-        let bits = vec![true; 32];
-        assert_eq!(Polynomial::bits_to_u32(&bits), 0xFFFF_FFFF);
+        let bits = vec![true; 16];
+        assert_eq!(Polynomial::bits_to_u16(&bits), 0xFFFF);
 
         // Test case 4: Alternating bits
         let bits = vec![
             false, true, false, true, false, true, false, true, false, true, false, true, false,
-            true, false, true, false, true, false, true, false, true, false, true, false, true,
-            false, true, false, true, false, true,
+            true, false, true,
         ];
-        assert_eq!(Polynomial::bits_to_u32(&bits), 0x5555_5555);
+        assert_eq!(Polynomial::bits_to_u16(&bits), 0x5555);
     }
 
     #[test]
@@ -396,28 +394,28 @@ mod tests {
         // 3.0*x0^3*x1*x2^5 + 15.0*x0*x1^4 + x2 + 1.0
 
         let term1 = Term {
-            coefficient: 3.0,
+            coefficient: f16::from_f32(3.0),
             degrees: vec![3, 1, 5],
         };
         let term2 = Term {
-            coefficient: 15.0,
+            coefficient: f16::from_f32(15.0),
             degrees: vec![1,4,0],
         };
         let term3 = Term {
-            coefficient: 1.0,
+            coefficient: f16::from_f32(1.0),
             degrees: vec![0,0,1],
         };
         let poly = Polynomial {
             terms: vec![term1, term2, term3],
-            constant: 1.0,
+            constant: f16::from_f32(1.0),
         };
 
         let chromosome = poly.to_chromosome(4);
 
         let from_chromosome = Polynomial::from_chromosome(poly.terms.len(), 4, 3, &chromosome);
 
-        //Each term is 32 + 4*3 bits = 44 bits
-        //Constant is 32, total = 44 * 3 + 32 = 164 bits
+        //Each term is 16 + 4*3 bits = 28 bits
+        //Constant is 16, total = 28 * 3 + 16 = 100 bits
 
         // Check that the chromosome has the correct length
         assert_eq!(chromosome.genes.len(), Polynomial::get_bits_needed(3, 4, 3));

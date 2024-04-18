@@ -20,3 +20,4 @@ plotters = { version = "0.3.4" }
 itertools = "0.12.1"
 ratatui = "0.26.2"
 crossterm = "0.27.0"
+half = { version = "2.4.1", features = ["alloc", "std", "num-traits"] }
