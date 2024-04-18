@@ -182,7 +182,7 @@ fn crossover(
 
 #[cfg(test)]
 mod evolution_tests {
-    use crate::common::*;
+    use crate::util::*;
 
     use super::*;
 

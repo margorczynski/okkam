@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use itertools::Itertools;
 use half::prelude::*;
 
-use crate::common::*;
+use crate::util::*;
 use crate::ga::chromosome::Chromosome;
 
 #[derive(Clone)]

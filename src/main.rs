@@ -2,7 +2,7 @@ extern crate core;
 
 mod ga;
 mod polynomial;
-mod common;
+mod util;
 
 use std::fs::File;
 use std::io::Result;
@@ -12,7 +12,7 @@ use std::cmp::Ordering;
 use rayon::prelude::*;
 use tokio::time::Instant;
 
-use crate::common::dataset_from_csv;
+use crate::util::dataset_from_csv;
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;

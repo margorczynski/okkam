@@ -87,7 +87,7 @@ pub fn dataset_from_csv<R: Read>(reader: R, has_headers: bool, delimiter: char) 
 }
 
 #[cfg(test)]
-mod common_tests {
+mod util_tests {
     use super::*;
 
     #[test]
