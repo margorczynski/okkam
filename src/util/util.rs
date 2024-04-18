@@ -10,7 +10,7 @@ use std::{
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
-type Dataset = Vec<(Vec<f32>, f32)>;
+pub type Dataset = Vec<(Vec<f32>, f32)>;
 
 static INIT: Once = Once::new();
 

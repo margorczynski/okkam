@@ -13,7 +13,7 @@ pub struct LevelFilterWrapper(pub LevelFilter);
 #[allow(unused)]
 pub struct OkkamConfig {
     pub log_level: LevelFilterWrapper,
-    pub dataset_path: String,
+    pub dataset_path: Box<str>,
     pub ga: GaConfig,
     pub polynomial: PolynomialConfig
 }
