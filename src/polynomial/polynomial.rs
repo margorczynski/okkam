@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use itertools::Itertools;
 use half::prelude::*;
 
+use crate::common::*;
 use crate::ga::chromosome::Chromosome;
 
 #[derive(Clone)]
@@ -17,11 +18,6 @@ pub struct Polynomial {
     pub constant: f16,
 }
 
-//TODO: Implement simplify - reduce terms
-//1 combine terms (add coefficients + remove redundant term)
-//2 Remove terms with 0.0 coeficcient
-//3 Combine constant terms (where all degrees = 0) with constant
-
 impl Polynomial {
     
     pub fn get_bits_needed(term_num: usize, degree_bits_num: usize, degree_num: usize) -> usize {
@@ -35,11 +31,11 @@ impl Polynomial {
         for term in &self.terms {
             // Encode the coefficient
             let coefficient_bits = term.coefficient.to_bits();
-            genes.append(&mut Self::bits_to_bit_vec_u16(&coefficient_bits));
+            genes.append(&mut bits_to_bit_vec_u16(&coefficient_bits));
             
             // Encode the degrees
             for degree in &term.degrees {
-                let degree_bit_vec = Self::bits_to_bit_vec_u8(degree);
+                let degree_bit_vec = bits_to_bit_vec_u8(degree);
                 let degree_bit_vec_limited = degree_bit_vec.iter().rev().take(degree_bits_num).rev();
                 genes.extend(degree_bit_vec_limited);
             }
@@ -47,7 +43,7 @@ impl Polynomial {
     
         // Encode the constant
         let constant_bits = self.constant.to_bits();
-        genes.append(&mut Self::bits_to_bit_vec_u16(&constant_bits));
+        genes.append(&mut bits_to_bit_vec_u16(&constant_bits));
     
         Chromosome { genes }
     }
@@ -64,12 +60,12 @@ impl Polynomial {
             // Extract the coefficient bits
             let coefficient_bits_vec = chromosome.genes[gene_index..(gene_index + coefficient_bits)].to_vec();
             gene_index += coefficient_bits;
-            let coefficient = f16::from_bits(Self::bits_to_u16(&coefficient_bits_vec));
+            let coefficient = f16::from_bits(bits_to_u16(&coefficient_bits_vec));
 
             for _ in 0..degree_num {
                 let degree_bits_vec = chromosome.genes[gene_index..(gene_index + degree_bits_num)].to_vec();
                 gene_index += degree_bits_num;
-                degrees.push(Self::bits_to_u8(&degree_bits_vec));
+                degrees.push(bits_to_u8(&degree_bits_vec));
             }
     
             terms.push(Term { coefficient, degrees });
@@ -77,7 +73,7 @@ impl Polynomial {
     
         // Extract the constant bits
         let constant_bits_vec = chromosome.genes[gene_index..].to_vec();
-        let constant = f16::from_bits(Self::bits_to_u16(&constant_bits_vec));
+        let constant = f16::from_bits(bits_to_u16(&constant_bits_vec));
     
         Polynomial { terms, constant }
     }
@@ -108,57 +104,15 @@ impl Polynomial {
         //Assume inputs.len == every term.degrees len
         let mut output = self.constant.to_f32();
 
-        for term in &self.terms {
-            let mut term_value = term.coefficient.to_f32();
-
-            for (degree, input) in term.degrees.iter().zip(inputs.iter()) {
-                term_value *= input.powi(*degree as i32);
-            }
-
-            output += term_value;
-        }
+        output += self.terms.iter().map(|term| {
+            term.degrees
+                .iter()
+                .zip(inputs.iter())
+                .map(|(degree, input)| input.powi(*degree as i32))
+                .product::<f32>() * term.coefficient.to_f32()
+        }).sum::<f32>();
 
         output
-    }
-
-    fn bits_to_bit_vec_u16(bits: &u16) -> Vec<bool> {
-        let mut result = Vec::new();
-    
-        for i in (0..16).rev() {
-            result.push(((bits >> i) & 1) == 1);
-        }
-    
-        result
-    }
-
-    fn bits_to_bit_vec_u8(bits: &u8) -> Vec<bool> {
-        let mut result = Vec::new();
-    
-        for i in (0..8).rev() {
-            result.push(((bits >> i) & 1) == 1);
-        }
-    
-        result
-    }
-
-    fn bits_to_u16(bits: &[bool]) -> u16 {
-        let mut result = 0;
-        for (i, &bit) in bits.iter().enumerate() {
-            if bit {
-                result |= 1 << (bits.len() - 1 - i);
-            }
-        }
-        result
-    }
-
-    fn bits_to_u8(bits: &[bool]) -> u8 {
-        let mut result = 0;
-        for (i, &bit) in bits.iter().enumerate() {
-            if bit {
-                result |= 1 << (bits.len() - 1 - i);
-            }
-        }
-        result
     }
 }
 
@@ -343,49 +297,6 @@ mod tests {
         };
         //2*2*3^2 + 3*2^2*3 + 1 = 36 + 36 + 1 = 73
         assert_eq!(poly.evaluate(&[2.0, 3.0]), 73.0);
-    }
-
-    #[test]
-    fn test_bits_to_bit_vec() {
-        // Test case 1: All bits are 0
-        let bits = 0u16;
-        let expected = vec![false; 16];
-        assert_eq!(Polynomial::bits_to_bit_vec_u16(&bits), expected);
-
-        // Test case 2: All bits are 1
-        let bits = 0xFFFFu16;
-        let expected = vec![true; 16];
-        assert_eq!(Polynomial::bits_to_bit_vec_u16(&bits), expected);
-
-        // Test case 3: Alternating bits
-        let bits = 0x5555u16;
-        let expected = vec![
-            false, true, false, true, false, true, false, true, false, true, false, true, false,
-            true, false, true,
-        ];
-        assert_eq!(Polynomial::bits_to_bit_vec_u16(&bits), expected);
-    }
-
-    #[test]
-    fn test_bits_to_u32() {
-        // Test case 1: Empty vector
-        let bits: Vec<bool> = vec![];
-        assert_eq!(Polynomial::bits_to_u16(&bits), 0);
-
-        // Test case 2: All bits are false
-        let bits = vec![false; 16];
-        assert_eq!(Polynomial::bits_to_u16(&bits), 0);
-
-        // Test case 3: All bits are true
-        let bits = vec![true; 16];
-        assert_eq!(Polynomial::bits_to_u16(&bits), 0xFFFF);
-
-        // Test case 4: Alternating bits
-        let bits = vec![
-            false, true, false, true, false, true, false, true, false, true, false, true, false,
-            true, false, true,
-        ];
-        assert_eq!(Polynomial::bits_to_u16(&bits), 0x5555);
     }
 
     #[test]
