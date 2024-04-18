@@ -4,6 +4,7 @@ mod ga;
 mod polynomial;
 mod common;
 
+use std::fs::File;
 use std::io::Result;
 use std::collections::HashSet;
 use std::cmp::Ordering;
@@ -11,6 +12,7 @@ use std::cmp::Ordering;
 use rayon::prelude::*;
 use tokio::time::Instant;
 
+use crate::common::dataset_from_csv;
 use crate::polynomial::polynomial::Polynomial;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
@@ -18,17 +20,12 @@ use crate::ga::ga::*;
 
 fn main() -> Result<()> {
 
-    let test_func = |x: f32, y: f32, z: f32| -> f32 {
-        (x.powi(2) + x*y*z + y.sqrt()*z.ln() - z.powi(3)) * (x + y + z).sqrt()
-    };
-
-    let data: Vec<(Vec<f32>, f32)> = (1..=100)
-        .map(|x| (vec![x as f32, x as f32, x as f32], test_func(x as f32, x as f32, x as f32)))
-        .collect();
+    let test_data_file = File::open("/home/jsf/Code/okkam/tools/test_dataset.csv")?;
+    let data = dataset_from_csv(test_data_file, false, ',').unwrap();
 
     let terms_num = 14;
     let degree_bits_num = 3;
-    let degree_num = 3;
+    let degree_num = data.first().unwrap().0.len();
 
     let population_size = 1024;
     let tournament_size = 15;
