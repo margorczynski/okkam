@@ -1,5 +1,6 @@
 log_level = "INFO"
 dataset_path = "examples/test_dataset.csv"
+result_path = "okkam_result.csv"
 
 [ga]
 population_size = 512
