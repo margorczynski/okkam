@@ -7,7 +7,7 @@ use std::{
 };
 
 
-use flexi_logger::{writers::LogWriter, FileSpec, Logger, WriteMode};
+use flexi_logger::{FileSpec, Logger};
 use log::LevelFilter;
 
 pub type Dataset = Vec<(Vec<f32>, f32)>;

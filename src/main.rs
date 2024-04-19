@@ -6,7 +6,7 @@ mod polynomial;
 mod util;
 mod ui;
 
-use std::fmt::format;
+
 use std::fs::{File, OpenOptions};
 use std::io::Result;
 use std::collections::HashSet;
@@ -15,7 +15,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use clap::Parser;
 use csv::Writer;
-use itertools::Itertools;
+
 use log::info;
 use rayon::prelude::*;
 use tokio::time::Instant;

@@ -1,15 +1,15 @@
 
 use std::{
-    io::{self, Stdout}, sync::Arc, time::Duration
+    io::{self, Stdout}, time::Duration
 };
 
 use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, Event, KeyCode}, execute, style::Stylize, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
+    event::{self, Event, KeyCode}, execute, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph},
 };
 
 use std::sync::mpsc::{channel, Receiver, Sender};
