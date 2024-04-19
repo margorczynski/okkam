@@ -7,18 +7,25 @@ use std::{
 };
 
 
-use flexi_logger::{FileSpec, Logger};
+use flexi_logger::{writers::LogWriter, FileSpec, Logger, WriteMode};
 use log::LevelFilter;
 
 pub type Dataset = Vec<(Vec<f32>, f32)>;
 
 static INIT: Once = Once::new();
 
-pub fn setup(log_level: LevelFilter) {
+pub fn setup(log_level: LevelFilter, is_headless: bool) {
     INIT.call_once(|| {
-        Logger::try_with_str(log_level.as_str())
-            .unwrap()
-            .log_to_file(FileSpec::default())         // write logs to file
+
+        let logger = Logger::try_with_str(log_level.as_str()).unwrap();
+
+        let file_or_stdout_logger = if is_headless {
+            logger.log_to_file(FileSpec::default()).duplicate_to_stdout(flexi_logger::Duplicate::All)
+        } else {
+            logger.log_to_file(FileSpec::default())
+        };
+
+        file_or_stdout_logger
             .start()
             .unwrap();
     });

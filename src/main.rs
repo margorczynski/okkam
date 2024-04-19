@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     let config = OkkamConfig::new(&args.config_path).unwrap();
 
     //Setup logging
-    setup(config.log_level.0);
+    setup(config.log_level.0, args.headless);
 
     //Load dataset from CSV file
     let csv_file = File::open(config.dataset_path.as_ref())?;
@@ -45,14 +45,19 @@ async fn main() -> Result<()> {
     info!("Starting Okkam with the following configuration:");
     info!("{:?}", config);
 
-    let computation = move |tx, rx| search_loop(&config, &dataset, tx, rx); 
-
-    let _ = run_ui(computation);
+    if args.headless {
+        info!("Strating in headless mode...");
+        search_loop(&config, &dataset, None, None)
+    } else {
+        info!("Starting terminal UI...");
+        let computation = move |tx, rx| search_loop(&config, &dataset, Some(tx), Some(rx)); 
+        run_ui(computation).unwrap();
+    }
 
     Ok(())
 }
 
-fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message>, rx: Receiver<Message>) {
+fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx_o: Option<Sender<Message>>, rx_o: Option<Receiver<Message>>) {
     //Get the number of variables and calculate chromosome bit length
     let variable_num = dataset.first().unwrap().0.len();
     let chromosome_bit_len = Polynomial::get_bits_needed(okkam_config.polynomial.terms_num, okkam_config.polynomial.degree_bits_num, variable_num);
@@ -66,9 +71,14 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
     info!("Starting main GA search loop");
 
     loop {
-        if let Ok(Message::Quit) = rx.try_recv() {
-            info!("Received QUIT message, exitting...");
-            break;
+        match &rx_o {
+            Some(rx) => {
+                match rx.try_recv() {
+                    Ok(Message::Quit) => break,
+                    _ => ()
+                }
+            },
+            None => ()
         }
 
         //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
@@ -116,7 +126,11 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
 
             info!("{:?}", new_state);
 
-            tx.send(Message::UpdateState(new_state)).unwrap();
+            match &tx_o {
+                Some(tx) =>
+                    tx.send(Message::UpdateState(new_state)).unwrap(),
+                None => ()
+            }
 
             lowest_err = total_abs_error;
         }

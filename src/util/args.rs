@@ -5,4 +5,7 @@ use clap::Parser;
 pub struct Args {
     #[arg(short, long)]
     pub config_path: String,
+
+    #[arg(short = 'H', long)]
+    pub headless: bool,
 }
