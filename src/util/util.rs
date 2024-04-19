@@ -7,8 +7,8 @@ use std::{
 };
 
 
+use flexi_logger::{FileSpec, Logger};
 use log::LevelFilter;
-use simple_logger::SimpleLogger;
 
 pub type Dataset = Vec<(Vec<f32>, f32)>;
 
@@ -16,10 +16,10 @@ static INIT: Once = Once::new();
 
 pub fn setup(log_level: LevelFilter) {
     INIT.call_once(|| {
-        SimpleLogger::new()
-            .with_level(log_level)
-            .without_timestamps()
-            .init()
+        Logger::try_with_str(log_level.as_str())
+            .unwrap()
+            .log_to_file(FileSpec::default())         // write logs to file
+            .start()
             .unwrap();
     });
 }

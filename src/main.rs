@@ -42,7 +42,8 @@ async fn main() -> Result<()> {
     let csv_file = File::open(config.dataset_path.as_ref())?;
     let dataset = dataset_from_csv(csv_file, false, ',').unwrap();
 
-    //TODO: If UI then don't send logs to STDOUT
+    info!("Starting Okkam with the following configuration:");
+    info!("{:?}", config);
 
     let computation = move |tx, rx| search_loop(&config, &dataset, tx, rx); 
 
@@ -62,8 +63,11 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
     let mut lowest_err: f32 = f32::INFINITY;
     let loop_start = Instant::now();
 
+    info!("Starting main GA search loop");
+
     loop {
         if let Ok(Message::Quit) = rx.try_recv() {
+            info!("Received QUIT message, exitting...");
             break;
         }
 

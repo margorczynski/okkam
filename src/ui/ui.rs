@@ -9,6 +9,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use log::info;
 use ratatui::{prelude::*, widgets::Paragraph};
 
 use std::sync::mpsc::{channel, Receiver, Sender};
