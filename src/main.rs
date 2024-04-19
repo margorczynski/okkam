@@ -13,6 +13,7 @@ use std::cmp::Ordering;
 use std::sync::mpsc::{Receiver, Sender};
 
 use clap::Parser;
+use log::info;
 use rayon::prelude::*;
 use tokio::time::Instant;
 use ui::ui::{App, Message};
@@ -41,6 +42,8 @@ async fn main() -> Result<()> {
     let csv_file = File::open(config.dataset_path.as_ref())?;
     let dataset = dataset_from_csv(csv_file, false, ',').unwrap();
 
+    //TODO: If UI then don't send logs to STDOUT
+
     let computation = move |tx, rx| search_loop(&config, &dataset, tx, rx); 
 
     let _ = run_ui(computation);
@@ -65,18 +68,20 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
         }
 
         //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
-        let mut chromosomes_with_diffs: Vec<(&Chromosome, Vec<f32>)> = population
+        let mut chromosomes_with_diffs: Vec<(&Chromosome, Vec<f32>, f32)> = population
         .par_iter()
         .map(|chromosome| {
             let polynomial = Polynomial::from_chromosome(okkam_config.polynomial.terms_num, okkam_config.polynomial.degree_bits_num, variable_num, chromosome);
-            (chromosome, dataset.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).abs()).collect())
+            let diffs: Vec<f32> = dataset.iter().map(|(inputs, output)| (polynomial.evaluate(inputs) - output).abs()).collect();
+            let sum = diffs.iter().sum();
+            (chromosome, diffs, sum)
         })
         .collect();
 
         chromosomes_with_diffs
         .par_sort_by(|a, b| {
-            let a_diff_sum: f32 = a.1.iter().sum();
-            let b_diff_sum: f32 = b.1.iter().sum();
+            let a_diff_sum: f32 = a.2;
+            let b_diff_sum: f32 = b.2;
 
             let a_is_nan = a_diff_sum.is_nan();
             let b_is_nan = b_diff_sum.is_nan();
@@ -93,7 +98,7 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
         });
 
         let lowest_err_chromosome = chromosomes_with_diffs.first().unwrap();
-        let total_abs_error = lowest_err_chromosome.1.iter().sum();
+        let total_abs_error = lowest_err_chromosome.2;
 
         if total_abs_error < lowest_err {
             let n = dataset.len() as f32;
@@ -105,6 +110,8 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
                 best_rmse: (lowest_err_chromosome.1.iter().map(|diff| diff.powi(2)).sum::<f32>() / n).sqrt(),
             };
 
+            info!("{:?}", new_state);
+
             tx.send(Message::UpdateState(new_state)).unwrap();
 
             lowest_err = total_abs_error;
@@ -115,7 +122,7 @@ fn search_loop(okkam_config: &OkkamConfig, dataset: &Dataset, tx: Sender<Message
         .iter()
         .rev() //Reverse so the ones with the biggest error get the lowest index/rank
         .enumerate()
-        .map(|(idx, (chromosome, _))| ChromosomeWithFitness::from_chromosome_and_fitness((*chromosome).clone(), idx as u32))
+        .map(|(idx, (chromosome, _, _))| ChromosomeWithFitness::from_chromosome_and_fitness((*chromosome).clone(), idx as u32))
         .collect::<HashSet<ChromosomeWithFitness<u32>>>();
 
         population = evolve(&chromosomes_with_fitness, SelectionStrategy::Tournament(okkam_config.ga.tournament_size), okkam_config.ga.mutation_rate, okkam_config.ga.elite_factor);
