@@ -5,12 +5,12 @@ use std::{
 
 use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{self, Event, KeyCode}, execute, style::Stylize, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
 };
-use log::info;
-use ratatui::{prelude::*, widgets::Paragraph};
+use ratatui::{
+    prelude::*,
+    widgets::{Block, Borders, Paragraph, Wrap},
+};
 
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
@@ -85,11 +85,6 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result
     terminal.show_cursor().context("unable to show cursor")
 }
 
-fn render_app(frame: &mut Frame, app: &App) {
-    let greeting = Paragraph::new(format!("Hello World! (press 'q' to quit), iteration: {}, avg_time: {:?}", app.iteration, app.avg_duration_per_iteration));
-    frame.render_widget(greeting, frame.size());
-}
-
 fn should_quit() -> Result<bool> {
     if event::poll(Duration::from_millis(250)).context("event poll failed")? {
         if let Event::Key(key) = event::read().context("event read failed")? {
@@ -97,4 +92,36 @@ fn should_quit() -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+fn render_app(frame: &mut Frame, app: &App) {
+    let create_block = |title| {
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::Gray))
+            .title(Span::styled(
+                title,
+                Style::default().add_modifier(Modifier::BOLD),
+            ))
+    };
+
+    let size = frame.size();
+    let layout = Layout::vertical([Constraint::Ratio(1, 8); 4]).split(size);
+
+    let block = Block::default();
+    frame.render_widget(block, size);
+
+    let text = vec![
+        Line::from(format!("Found in iteration: {}", app.iteration)),
+        Line::from(format!("Average time per iteration: {:?}", app.avg_duration_per_iteration)),
+        Line::from(format!("MAE:  {}", app.best_mae)),
+        Line::from(format!("MAPE: {}%", app.best_mape)),
+        Line::from(format!("RMSE: {}", app.best_rmse)),
+    ];
+
+    let paragraph = Paragraph::new(text)
+        .style(Style::default().fg(Color::White))
+        .block(create_block("Top candidate information"));
+    frame.render_widget(paragraph, layout[0]);
+
 }
