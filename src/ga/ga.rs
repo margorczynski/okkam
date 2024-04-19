@@ -1,13 +1,11 @@
-
 use std::collections::HashSet;
 
-
 use log::debug;
+use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::{Rng, SeedableRng};
 use rand_distr::Binomial;
 use rayon::prelude::*;
-use rand::distributions::Uniform;
 
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
@@ -32,7 +30,9 @@ pub fn generate_initial_population(
     //TODO: Refactor this
     let res = (0..initial_population_count).into_par_iter().map(|_| {
         let mut rng_clone = rng.clone();
-        let random_genes= (0..chromosome_size).map(|_| rng_clone.gen::<bool>()).collect();
+        let random_genes = (0..chromosome_size)
+            .map(|_| rng_clone.gen::<bool>())
+            .collect();
 
         Chromosome::from_genes(random_genes)
     });
@@ -83,7 +83,8 @@ pub fn evolve<T: PartialEq + PartialOrd + Clone + Eq + Send>(
             let parents = select(chromosomes_with_fitness, &selection_strategy);
             let (offspring_1, offspring_2) = crossover(parents, 1.0f32, mutation_rate);
             vec![offspring_1, offspring_2]
-        }).flatten();
+        })
+        .flatten();
 
     new_generation.par_extend(offspring);
 
@@ -117,11 +118,16 @@ fn select<T: PartialEq + PartialOrd + Clone + Eq + Send>(
             let mut rng = thread_rng();
             //TODO: If chromosomes.len = 0 OR tournament_size > chromosomes.len -> panic
             let mut get_winner = |cwf: &HashSet<ChromosomeWithFitness<T>>| {
-                cwf.iter().choose_multiple(&mut rng, tournament_size).into_iter().max().unwrap().clone()
+                cwf.iter()
+                    .choose_multiple(&mut rng, tournament_size)
+                    .into_iter()
+                    .max()
+                    .unwrap()
+                    .clone()
             };
 
             let first = get_winner(&chromosomes_with_fitness);
-            let second= get_winner(&chromosomes_with_fitness);
+            let second = get_winner(&chromosomes_with_fitness);
 
             (first.chromosome, second.chromosome)
         }

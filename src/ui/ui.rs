@@ -1,11 +1,13 @@
-
 use std::{
-    io::{self, Stdout}, time::Duration
+    io::{self, Stdout},
+    time::Duration,
 };
 
 use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, Event, KeyCode}, execute, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}
+    event::{self, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     prelude::*,
@@ -14,7 +16,6 @@ use ratatui::{
 
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
-
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct App {
@@ -32,7 +33,8 @@ pub enum Message {
 }
 
 pub fn run_ui<F>(computation: F) -> Result<()>
-where F: FnOnce(Sender<Message>, Receiver<Message>) + Send + 'static,
+where
+    F: FnOnce(Sender<Message>, Receiver<Message>) + Send + 'static,
 {
     let mut terminal = setup_terminal().context("setup failed")?;
 
@@ -43,12 +45,18 @@ where F: FnOnce(Sender<Message>, Receiver<Message>) + Send + 'static,
         computation(tx_computation, rx_ui);
     });
 
-    let mut app = App { iteration: 0, avg_duration_per_iteration: Duration::ZERO, best_mae: 0.0f32, best_mape: 0.0f32, best_rmse: 0.0f32 };
+    let mut app = App {
+        iteration: 0,
+        avg_duration_per_iteration: Duration::ZERO,
+        best_mae: 0.0f32,
+        best_mape: 0.0f32,
+        best_rmse: 0.0f32,
+    };
 
     loop {
         terminal.draw(|f| {
             render_app(f, &app);
-          })?;
+        })?;
 
         if should_quit()? {
             tx_ui.send(Message::Quit).unwrap();
@@ -67,7 +75,7 @@ where F: FnOnce(Sender<Message>, Receiver<Message>) + Send + 'static,
     }
 
     computation_handle.join().unwrap();
-    
+
     restore_terminal(&mut terminal)
 }
 
@@ -113,7 +121,10 @@ fn render_app(frame: &mut Frame, app: &App) {
 
     let text = vec![
         Line::from(format!("Found in iteration: {}", app.iteration)),
-        Line::from(format!("Average time per iteration: {:?}", app.avg_duration_per_iteration)),
+        Line::from(format!(
+            "Average time per iteration: {:?}",
+            app.avg_duration_per_iteration
+        )),
         Line::from(format!("MAE:  {}", app.best_mae)),
         Line::from(format!("MAPE: {}%", app.best_mape)),
         Line::from(format!("RMSE: {}", app.best_rmse)),
@@ -123,5 +134,4 @@ fn render_app(frame: &mut Frame, app: &App) {
         .style(Style::default().fg(Color::White))
         .block(create_block("Top candidate information"));
     frame.render_widget(paragraph, layout[0]);
-
 }

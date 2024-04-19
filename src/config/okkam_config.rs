@@ -16,7 +16,7 @@ pub struct OkkamConfig {
     pub dataset_path: Box<str>,
     pub result_path: Box<str>,
     pub ga: GaConfig,
-    pub polynomial: PolynomialConfig
+    pub polynomial: PolynomialConfig,
 }
 
 impl OkkamConfig {
