@@ -2,6 +2,7 @@ log_level = "INFO"
 log_directory = "./logs"
 dataset_path = "examples/test_dataset.csv"
 result_path = "okkam_result.csv"
+minimized_error_measure = "MAE"
 
 [ga]
 population_size = 512

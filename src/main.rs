@@ -23,6 +23,7 @@ use ui::ui::{App, Message};
 use util::util::Dataset;
 
 use crate::config::okkam_config::OkkamConfig;
+use crate::config::error_measure::ErrorMeasure::*;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
 use crate::ga::ga::*;
@@ -57,7 +58,7 @@ async fn main() -> Result<()> {
     let result_path = Path::new(config.result_path.as_ref());
     let result_file = OpenOptions::new()
         .write(true)
-        .append(false)
+        .truncate(true)
         .create(true)
         .open(result_path)
         .unwrap();
@@ -150,11 +151,27 @@ fn search_loop(
         debug!("chromosomes_with_errors calculated");
 
         chromosomes_with_errors.par_sort_by(|a, b| {
-            let a_mae: f64 = a.2;
-            let b_mae: f64 = b.2;
+            let a_measure: f64;
+            let b_measure: f64;
 
-            let a_is_nan = a_mae.is_nan();
-            let b_is_nan = b_mae.is_nan();
+            match &okkam_config.minimized_error_measure  {
+                MAE => {
+                    a_measure = a.2;
+                    b_measure = b.2;
+                }
+                MAPE => {
+                    a_measure = a.3;
+                    b_measure = b.3;
+                },
+                RMSE => {
+                    a_measure = a.4;
+                    b_measure = b.4;
+                },
+            };
+            debug!("chromosomes_with_errors sorted with measure: {:?}", &okkam_config.minimized_error_measure);
+
+            let a_is_nan = a_measure.is_nan();
+            let b_is_nan = b_measure.is_nan();
 
             if a_is_nan && b_is_nan {
                 Ordering::Equal
@@ -163,7 +180,7 @@ fn search_loop(
             } else if b_is_nan {
                 Ordering::Less
             } else {
-                a_mae.partial_cmp(&b_mae).unwrap()
+                a_measure.partial_cmp(&b_measure).unwrap()
             }
         });
         debug!("chromosomes_with_errors sorted");

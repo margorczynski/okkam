@@ -4,7 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 use log::{debug, LevelFilter};
 use serde::{Deserialize, Deserializer};
 
-use super::{ga_config::GaConfig, polynomial_config::PolynomialConfig};
+use super::{error_measure::ErrorMeasure, ga_config::GaConfig, polynomial_config::PolynomialConfig};
 
 #[derive(Debug)]
 pub struct LevelFilterWrapper(pub LevelFilter);
@@ -16,6 +16,7 @@ pub struct OkkamConfig {
     pub log_directory: Box<str>,
     pub dataset_path: Box<str>,
     pub result_path: Box<str>,
+    pub minimized_error_measure: ErrorMeasure,
     pub ga: GaConfig,
     pub polynomial: PolynomialConfig,
 }
