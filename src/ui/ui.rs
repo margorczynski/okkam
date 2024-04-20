@@ -190,7 +190,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
             .block(create_block("Summary"));
         frame.render_widget(paragraph, info_layout[0]);
 
-        let table = create_table(app_history).block(create_block("Top Polynomial Details"));
+        let table = create_table(app_history).block(create_block("Best 25 Polynomial Details"));
         frame.render_widget(table, info_layout[1]);
 
         let mae_x_title = format!("N = {}", mae_data.len());
@@ -234,7 +234,7 @@ fn create_table(app_history: &[App]) -> Table {
     let header = [
         Span::styled("Iteration", Style::new().bold()),
         Span::styled("Mean Absolute Error", Style::new().bold()),
-        Span::styled("Mean Absolute Percentage Error", Style::new().bold()),
+        Span::styled("Mean Absolute Percentage Error (%)", Style::new().bold()),
         Span::styled("Root Mean Squared Error", Style::new().bold()),
     ]
     .into_iter()
@@ -244,6 +244,9 @@ fn create_table(app_history: &[App]) -> Table {
 
     app_history
         .iter()
+        .rev()
+        .take(30)
+        .rev()
         .map(|app| {
             Row::new(vec![
                 Cell::from(app.iteration.to_string()),
