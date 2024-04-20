@@ -20,6 +20,7 @@ Cargo.lock
 
 # Logs
 *.log
+/logs
 
 # CSV results
 *.csv
