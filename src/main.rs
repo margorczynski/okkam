@@ -122,8 +122,8 @@ fn search_loop(
             None => (),
         }
 
-        //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
-        let mut chromosomes_with_diffs: Vec<(&Chromosome, Polynomial, Vec<f64>, f64)> = population
+        //Extract the polynomials from the chromosomes and attach the calculated MAE, MAPE and RMSE
+        let mut chromosomes_with_errors: Vec<(&Chromosome, Polynomial, f64, f64, f64)> = population
             .par_iter()
             .map(|chromosome| {
                 let polynomial = Polynomial::from_chromosome(
@@ -132,22 +132,29 @@ fn search_loop(
                     variable_num,
                     chromosome,
                 );
-                let diffs: Vec<f64> = dataset
+                let abs_diffs: Vec<f64> = dataset
                     .iter()
                     .map(|(inputs, output)| (polynomial.evaluate(inputs) - output).abs())
                     .collect();
-                let sum = diffs.iter().sum();
-                (chromosome, polynomial.clone(), diffs, sum)
+
+                let n = dataset.len() as f64;
+                let mae = abs_diffs.iter().sum::<f64>() / n;
+                let mape = 
+                    (abs_diffs.iter().zip(dataset.iter().map(|ds| ds.1))
+                    .map(|(abs_diff, expected)| abs_diff / expected.abs())
+                    .sum::<f64>() * 100.0f64) / n;
+                let rmse = (abs_diffs.iter().map(|diff| diff.powi(2)).sum::<f64>() / n).sqrt();
+                (chromosome, polynomial.clone(), mae, mape, rmse)
             })
             .collect();
-        debug!("chromosomes_with_diffs calculated");
+        debug!("chromosomes_with_errors calculated");
 
-        chromosomes_with_diffs.par_sort_by(|a, b| {
-            let a_diff_sum: f64 = a.3;
-            let b_diff_sum: f64 = b.3;
+        chromosomes_with_errors.par_sort_by(|a, b| {
+            let a_mae: f64 = a.2;
+            let b_mae: f64 = b.2;
 
-            let a_is_nan = a_diff_sum.is_nan();
-            let b_is_nan = b_diff_sum.is_nan();
+            let a_is_nan = a_mae.is_nan();
+            let b_is_nan = b_mae.is_nan();
 
             if a_is_nan && b_is_nan {
                 Ordering::Equal
@@ -156,33 +163,25 @@ fn search_loop(
             } else if b_is_nan {
                 Ordering::Less
             } else {
-                a_diff_sum.partial_cmp(&b_diff_sum).unwrap()
+                a_mae.partial_cmp(&b_mae).unwrap()
             }
         });
-        debug!("chromosomes_with_diffs sorted");
+        debug!("chromosomes_with_errors sorted");
 
-        let lowest_err_chromosome = chromosomes_with_diffs.first().unwrap();
-        let total_abs_error = lowest_err_chromosome.3;
+        let lowest_err_chromosome = chromosomes_with_errors.first().unwrap();
+        let best_mae = lowest_err_chromosome.2;
+        let best_mape = lowest_err_chromosome.3;
+        let best_rmse = lowest_err_chromosome.4;
 
-        if total_abs_error < lowest_err {
-            debug!("New lowest error found. lowest_err={}, total_abs_error={}", lowest_err, total_abs_error);
-            let n = dataset.len() as f64;
-            let mae = total_abs_error / n;
-            let mape = (100.0f64 * total_abs_error)
-                / (n * dataset.iter().map(|(_, expected)| expected).sum::<f64>());
-            let rmse = (lowest_err_chromosome
-                .2
-                .iter()
-                .map(|diff| diff.powi(2))
-                .sum::<f64>()
-                / n)
-                .sqrt();
+        if best_mae < lowest_err {
+            debug!("New lowest MAE found. lowest_err={}, best_mae={}", lowest_err, best_mae);
+
             let new_state = App {
                 iteration: iteration,
                 avg_duration_per_iteration: loop_start.elapsed() / (iteration + 1) as u32,
-                best_mae: mae,
-                best_mape: mape,
-                best_rmse: rmse,
+                best_mae: best_mae,
+                best_mape: best_mape,
+                best_rmse: best_rmse,
             };
 
             info!("{:?}", new_state);
@@ -193,19 +192,19 @@ fn search_loop(
             }
 
             //Write the record with the polynomial information to the CSV file
-            let record = get_polynomial_record(&lowest_err_chromosome.1, mae, mape, rmse);
+            let record = get_polynomial_record(&lowest_err_chromosome.1, best_mae, best_mape, best_rmse);
             result_writer.write_record(record).unwrap();
             result_writer.flush().unwrap();
             debug!("Saved new best result to CSV");
 
-            lowest_err = total_abs_error;
+            lowest_err = best_mae;
         }
 
-        let chromosomes_with_fitness: HashSet<ChromosomeWithFitness<u32>> = chromosomes_with_diffs
+        let chromosomes_with_fitness: HashSet<ChromosomeWithFitness<u32>> = chromosomes_with_errors
             .iter()
             .rev() //Reverse so the ones with the biggest error get the lowest index/rank
             .enumerate()
-            .map(|(idx, (chromosome, _, _, _))| {
+            .map(|(idx, (chromosome, _, _, _, _))| {
                 ChromosomeWithFitness::from_chromosome_and_fitness(
                     (*chromosome).clone(),
                     idx as u32,
