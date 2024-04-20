@@ -6,12 +6,12 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use indoc::indoc;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use indoc::indoc;
 use itertools::izip;
 use ratatui::{
     prelude::*,
@@ -20,7 +20,7 @@ use ratatui::{
     },
 };
 
-use crate::{config::okkam_config::OkkamConfig, polynomial};
+use crate::config::okkam_config::OkkamConfig;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct App {
@@ -102,7 +102,7 @@ fn should_quit() -> Result<bool> {
 }
 
 fn render_app(frame: &mut Frame, app_history: &[App], okkam_config: &OkkamConfig) {
-    let latest_app = app_history.last();
+    let _latest_app = app_history.last();
 
     let size = frame.size();
 
@@ -172,7 +172,12 @@ fn render_app(frame: &mut Frame, app_history: &[App], okkam_config: &OkkamConfig
             .map(|(idx, mape)| (idx as f64, mape))
             .collect();
 
-        frame.render_widget(Paragraph::new(logo()).style(Style::new().white()).alignment(Alignment::Center), logo_layout[1]);
+        frame.render_widget(
+            Paragraph::new(logo())
+                .style(Style::new().white())
+                .alignment(Alignment::Center),
+            logo_layout[1],
+        );
 
         let (general_config, ga_config, polynomial_config) = create_config_info(&okkam_config);
         frame.render_widget(general_config, config_info_layout[1]);
@@ -260,11 +265,32 @@ fn logo() -> String {
 
 fn create_config_info(okkam_config: &OkkamConfig) -> (Paragraph<'_>, Paragraph<'_>, Paragraph<'_>) {
     let okkam_general_config_text = vec![
-        Line::from(Span::styled(format!("log_level               = {}", okkam_config.log_level.0.as_str()), Style::new().bold())),
-        Line::from(Span::styled(format!("log_directory           = {}", okkam_config.log_directory), Style::new().bold())),
-        Line::from(Span::styled(format!("dataset_path            = {}", okkam_config.dataset_path), Style::new().bold())),
-        Line::from(Span::styled(format!("result_path             = {}", okkam_config.result_path), Style::new().bold())),
-        Line::from(Span::styled(format!("minimized_error_measure = {:?}", okkam_config.minimized_error_measure), Style::new().bold())),
+        Line::from(Span::styled(
+            format!(
+                "log_level               = {}",
+                okkam_config.log_level.0.as_str()
+            ),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!("log_directory           = {}", okkam_config.log_directory),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!("dataset_path            = {}", okkam_config.dataset_path),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!("result_path             = {}", okkam_config.result_path),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!(
+                "minimized_error_measure = {:?}",
+                okkam_config.minimized_error_measure
+            ),
+            Style::new().bold(),
+        )),
     ];
     let okkam_general_config_paragraph = Paragraph::new(okkam_general_config_text)
         .block(create_block("General"))
@@ -272,10 +298,22 @@ fn create_config_info(okkam_config: &OkkamConfig) -> (Paragraph<'_>, Paragraph<'
         .wrap(Wrap { trim: true });
 
     let ga_config_text = vec![
-        Line::from(Span::styled(format!("population_size = {}", okkam_config.ga.population_size), Style::new().bold())),
-        Line::from(Span::styled(format!("tournament_size = {}", okkam_config.ga.tournament_size), Style::new().bold())),
-        Line::from(Span::styled(format!("mutation_rate   = {}", okkam_config.ga.mutation_rate), Style::new().bold())),
-        Line::from(Span::styled(format!("elite_factor    = {}", okkam_config.ga.elite_factor), Style::new().bold())),
+        Line::from(Span::styled(
+            format!("population_size = {}", okkam_config.ga.population_size),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!("tournament_size = {}", okkam_config.ga.tournament_size),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!("mutation_rate   = {}", okkam_config.ga.mutation_rate),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!("elite_factor    = {}", okkam_config.ga.elite_factor),
+            Style::new().bold(),
+        )),
     ];
     let ga_config_paragraph = Paragraph::new(ga_config_text)
         .block(create_block("Genetic Algorithm"))
@@ -283,15 +321,28 @@ fn create_config_info(okkam_config: &OkkamConfig) -> (Paragraph<'_>, Paragraph<'
         .wrap(Wrap { trim: true });
 
     let polynomial_config_text = vec![
-        Line::from(Span::styled(format!("terms_num       = {}", okkam_config.polynomial.terms_num), Style::new().bold())),
-        Line::from(Span::styled(format!("degree_bits_num = {}", okkam_config.polynomial.degree_bits_num), Style::new().bold())),
+        Line::from(Span::styled(
+            format!("terms_num       = {}", okkam_config.polynomial.terms_num),
+            Style::new().bold(),
+        )),
+        Line::from(Span::styled(
+            format!(
+                "degree_bits_num = {}",
+                okkam_config.polynomial.degree_bits_num
+            ),
+            Style::new().bold(),
+        )),
     ];
     let polynomial_config_paragraph = Paragraph::new(polynomial_config_text)
         .block(create_block("Polynomial"))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
 
-    (okkam_general_config_paragraph, ga_config_paragraph, polynomial_config_paragraph)
+    (
+        okkam_general_config_paragraph,
+        ga_config_paragraph,
+        polynomial_config_paragraph,
+    )
 }
 
 fn create_table(app_history: &[App]) -> Table {
