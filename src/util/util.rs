@@ -15,7 +15,9 @@ pub fn setup(log_level: &LevelFilter, log_directory: Option<&str>, is_headless: 
 
         let logger_configured = match log_directory {
             Some(log_directory_val) => {
-                let file_spec = FileSpec::default().directory(log_directory_val);
+                let file_spec = FileSpec::default()
+                    .directory(log_directory_val)
+                    .suppress_timestamp();
                 if is_headless {
                     logger
                         .log_to_file(file_spec)

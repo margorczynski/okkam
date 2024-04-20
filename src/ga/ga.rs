@@ -4,9 +4,9 @@ use itertools::Itertools;
 use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
-use rand_distr::Binomial;
-use rand::{Rng, SeedableRng};
 use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
+use rand_distr::Binomial;
 use rayon::prelude::*;
 
 use crate::ga::chromosome::Chromosome;
@@ -66,11 +66,7 @@ pub fn evolve<T: PartialEq + PartialOrd + Clone + Eq + Send>(
     debug!("Elite amount: {}", elite_amount);
 
     let chromosomes_with_fitness_ordered: Vec<ChromosomeWithFitness<T>> =
-        chromosomes_with_fitness
-        .iter()
-        .cloned()
-        .sorted()
-        .collect();
+        chromosomes_with_fitness.iter().cloned().sorted().collect();
 
     let elite = chromosomes_with_fitness_ordered
         .par_iter()

@@ -24,7 +24,7 @@ This application uses a Genetic Algorithm (GA) to perform symbolic regression on
 
 `cd okkam`
 
-3. Build the project:
+3. Build the project (optimized version):
 
 `cargo build --release`
 
