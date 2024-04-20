@@ -13,7 +13,9 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Paragraph},
+    widgets::{
+        Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Padding, Paragraph, Row, Table,
+    },
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -100,6 +102,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
         Block::default()
             .borders(Borders::ALL)
             .style(Style::default().fg(Color::Gray))
+            .padding(Padding::new(2, 2, 1, 1))
             .title(Span::styled(
                 title,
                 Style::default().add_modifier(Modifier::BOLD),
@@ -115,12 +118,17 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
         .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(frame.size());
 
-    let inner_layout = Layout::default()
+    let info_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
+        .split(outer_layout[0]);
+
+    let chart_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![
             Constraint::Percentage(33),
             Constraint::Percentage(33),
-            Constraint::Percentage(33),
+            Constraint::Percentage(34),
         ])
         .split(outer_layout[1]);
 
@@ -179,8 +187,11 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
 
         let paragraph = Paragraph::new(text)
             .style(Style::default().fg(Color::White))
-            .block(create_block("Top candidate information"));
-        frame.render_widget(paragraph, outer_layout[0]);
+            .block(create_block("Summary"));
+        frame.render_widget(paragraph, info_layout[0]);
+
+        let table = create_table(app_history).block(create_block("Top Polynomial Details"));
+        frame.render_widget(table, info_layout[1]);
 
         let mae_x_title = format!("N = {}", mae_data.len());
         let mae_y_title = format!("Max MAE = 10^{:.4}", mae_data.first().unwrap().1);
@@ -192,7 +203,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
             &mae_y_title,
         )
         .block(create_block("Mean Absolute Error"));
-        frame.render_widget(mae_chart, inner_layout[0]);
+        frame.render_widget(mae_chart, chart_layout[0]);
 
         let mape_chart = create_chart(
             &mape_data,
@@ -202,7 +213,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
             "MAPE (log10, %)",
         )
         .block(create_block("Mean Absolute Percentage Error"));
-        frame.render_widget(mape_chart, inner_layout[1]);
+        frame.render_widget(mape_chart, chart_layout[1]);
 
         if !rmse_data.is_empty() {
             let rmse_chart = create_chart(
@@ -213,9 +224,36 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
                 "RMSE (log10)",
             )
             .block(create_block("Root Mean Squared Error"));
-            frame.render_widget(rmse_chart, inner_layout[2]);
+            frame.render_widget(rmse_chart, chart_layout[2]);
         }
     }
+}
+
+fn create_table(app_history: &[App]) -> Table {
+    let header_style = Style::default().fg(Color::White).bg(Color::Cyan);
+    let header = [
+        Span::styled("Iteration", Style::new().bold()),
+        Span::styled("Mean Absolute Error", Style::new().bold()),
+        Span::styled("Mean Absolute Percentage Error", Style::new().bold()),
+        Span::styled("Root Mean Squared Error", Style::new().bold()),
+    ]
+    .into_iter()
+    .map(Cell::from)
+    .collect::<Row>()
+    .style(header_style);
+
+    app_history
+        .iter()
+        .map(|app| {
+            Row::new(vec![
+                Cell::from(app.iteration.to_string()),
+                Cell::from(app.best_mae.to_string()),
+                Cell::from(app.best_mape.to_string()),
+                Cell::from(app.best_rmse.to_string()),
+            ])
+        })
+        .collect::<Table>()
+        .header(header)
 }
 
 fn create_chart<'a>(
