@@ -8,10 +8,10 @@ use super::{
     error_measure::ErrorMeasure, ga_config::GaConfig, polynomial_config::PolynomialConfig,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct LevelFilterWrapper(pub LevelFilter);
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[allow(unused)]
 pub struct OkkamConfig {
     pub log_level: LevelFilterWrapper,

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub enum ErrorMeasure {
     MAE,
     MAPE,

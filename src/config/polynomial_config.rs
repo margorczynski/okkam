@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[allow(unused)]
 pub struct PolynomialConfig {
     pub terms_num: usize,

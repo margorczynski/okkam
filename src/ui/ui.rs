@@ -6,17 +6,21 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use indoc::indoc;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use itertools::izip;
 use ratatui::{
     prelude::*,
     widgets::{
-        Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Padding, Paragraph, Row, Table,
+        Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Padding, Paragraph, Row, Table, Wrap,
     },
 };
+
+use crate::{config::okkam_config::OkkamConfig, polynomial};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct App {
@@ -33,7 +37,7 @@ pub enum Message {
     Quit,
 }
 
-pub fn run_ui<F>(computation: F) -> Result<()>
+pub fn run_ui<F>(okkam_config: &OkkamConfig, computation: F) -> Result<()>
 where
     F: FnOnce(Sender<Message>, Receiver<Message>) + Send + 'static,
 {
@@ -50,7 +54,7 @@ where
 
     loop {
         terminal.draw(|f| {
-            render_app(f, &app_history);
+            render_app(f, &app_history, okkam_config);
         })?;
 
         if should_quit()? {
@@ -97,18 +101,7 @@ fn should_quit() -> Result<bool> {
     Ok(false)
 }
 
-fn render_app(frame: &mut Frame, app_history: &[App]) {
-    let create_block = |title| {
-        Block::default()
-            .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Gray))
-            .padding(Padding::new(2, 2, 1, 1))
-            .title(Span::styled(
-                title,
-                Style::default().add_modifier(Modifier::BOLD),
-            ))
-    };
-
+fn render_app(frame: &mut Frame, app_history: &[App], okkam_config: &OkkamConfig) {
     let latest_app = app_history.last();
 
     let size = frame.size();
@@ -123,6 +116,25 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
         .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(outer_layout[0]);
 
+    let config_info_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ])
+        .split(info_layout[0]);
+
+    let logo_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![
+            Constraint::Percentage(25),
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
+        ])
+        .split(config_info_layout[0]);
+
     let chart_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![
@@ -134,31 +146,6 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
 
     let block = Block::default();
     frame.render_widget(block, size);
-
-    let text = vec![
-        Line::from(format!(
-            "Found in iteration: {}",
-            latest_app.map(|app| app.iteration).unwrap_or(0)
-        )),
-        Line::from(format!(
-            "Average time per iteration: {:?}",
-            latest_app
-                .map(|app| app.avg_duration_per_iteration)
-                .unwrap_or(Duration::ZERO)
-        )),
-        Line::from(format!(
-            "MAE:  {}",
-            latest_app.map(|app| app.best_mae).unwrap_or(0.0)
-        )),
-        Line::from(format!(
-            "MAPE: {}%",
-            latest_app.map(|app| app.best_mape).unwrap_or(0.0)
-        )),
-        Line::from(format!(
-            "RMSE: {}",
-            latest_app.map(|app| app.best_rmse).unwrap_or(0.0)
-        )),
-    ];
 
     if !app_history.is_empty() {
         let mae_data: Vec<(f64, f64)> = app_history
@@ -185,43 +172,47 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
             .map(|(idx, mape)| (idx as f64, mape))
             .collect();
 
-        let paragraph = Paragraph::new(text)
-            .style(Style::default().fg(Color::White))
-            .block(create_block("Summary"));
-        frame.render_widget(paragraph, info_layout[0]);
+        frame.render_widget(Paragraph::new(logo()).style(Style::new().white()).alignment(Alignment::Center), logo_layout[1]);
+
+        let (general_config, ga_config, polynomial_config) = create_config_info(&okkam_config);
+        frame.render_widget(general_config, config_info_layout[1]);
+        frame.render_widget(ga_config, config_info_layout[2]);
+        frame.render_widget(polynomial_config, config_info_layout[3]);
 
         let table = create_table(app_history).block(create_block("Best 25 Polynomial Details"));
         frame.render_widget(table, info_layout[1]);
 
-        let mae_x_title = format!("N = {}", mae_data.len());
+        let x_title = format!("N = {}", mae_data.len());
         let mae_y_title = format!("Max MAE = 10^{:.4}", mae_data.first().unwrap().1);
         let mae_chart = create_chart(
             &mae_data,
             "MAE (log10)",
             Color::LightRed,
-            &mae_x_title,
+            &x_title,
             &mae_y_title,
         )
         .block(create_block("Mean Absolute Error"));
         frame.render_widget(mae_chart, chart_layout[0]);
 
+        let mape_y_title = format!("Max MAPE = 10^{:.4}%", mape_data.first().unwrap().1);
         let mape_chart = create_chart(
             &mape_data,
             "MAPE (log10, %)",
             Color::LightMagenta,
-            "N",
-            "MAPE (log10, %)",
+            &x_title,
+            &mape_y_title,
         )
         .block(create_block("Mean Absolute Percentage Error"));
         frame.render_widget(mape_chart, chart_layout[1]);
 
+        let rmse_y_title = format!("Max RMSE = 10^{:.4}", rmse_data.first().unwrap().1);
         if !rmse_data.is_empty() {
             let rmse_chart = create_chart(
                 &rmse_data,
                 "RMSE (log10)",
                 Color::LightYellow,
-                "N",
-                "RMSE (log10)",
+                &x_title,
+                &rmse_y_title,
             )
             .block(create_block("Root Mean Squared Error"));
             frame.render_widget(rmse_chart, chart_layout[2]);
@@ -229,10 +220,85 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
     }
 }
 
+fn create_block(title: &str) -> Block<'_> {
+    Block::default()
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::Gray))
+        .padding(Padding::new(2, 2, 1, 1))
+        .title(Span::styled(
+            title,
+            Style::default().add_modifier(Modifier::BOLD),
+        ))
+}
+
+fn logo() -> String {
+    let o = indoc! {"
+            ▄▄▄▄
+            █  █
+            █▄▄█
+        "};
+    let k = indoc! {"
+            ▄  ▄
+            █▄▀
+            █ ▀▄
+        "};
+    let a = indoc! {"
+             ▄▄
+            █▄▄█
+            █  █
+        "};
+    let m = indoc! {"
+            ▄   ▄
+            █▀▄▀█
+            █   █
+        "};
+    izip!(o.lines(), k.lines(), a.lines(), m.lines())
+        .map(|(o, k, a, m)| format!("{o:5}{k:5}{k:5}{a:5}{m:5}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn create_config_info(okkam_config: &OkkamConfig) -> (Paragraph<'_>, Paragraph<'_>, Paragraph<'_>) {
+    let okkam_general_config_text = vec![
+        Line::from(Span::styled(format!("log_level               = {}", okkam_config.log_level.0.as_str()), Style::new().bold())),
+        Line::from(Span::styled(format!("log_directory           = {}", okkam_config.log_directory), Style::new().bold())),
+        Line::from(Span::styled(format!("dataset_path            = {}", okkam_config.dataset_path), Style::new().bold())),
+        Line::from(Span::styled(format!("result_path             = {}", okkam_config.result_path), Style::new().bold())),
+        Line::from(Span::styled(format!("minimized_error_measure = {:?}", okkam_config.minimized_error_measure), Style::new().bold())),
+    ];
+    let okkam_general_config_paragraph = Paragraph::new(okkam_general_config_text)
+        .block(create_block("General"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: true });
+
+    let ga_config_text = vec![
+        Line::from(Span::styled(format!("population_size = {}", okkam_config.ga.population_size), Style::new().bold())),
+        Line::from(Span::styled(format!("tournament_size = {}", okkam_config.ga.tournament_size), Style::new().bold())),
+        Line::from(Span::styled(format!("mutation_rate   = {}", okkam_config.ga.mutation_rate), Style::new().bold())),
+        Line::from(Span::styled(format!("elite_factor    = {}", okkam_config.ga.elite_factor), Style::new().bold())),
+    ];
+    let ga_config_paragraph = Paragraph::new(ga_config_text)
+        .block(create_block("Genetic Algorithm"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: true });
+
+    let polynomial_config_text = vec![
+        Line::from(Span::styled(format!("terms_num       = {}", okkam_config.polynomial.terms_num), Style::new().bold())),
+        Line::from(Span::styled(format!("degree_bits_num = {}", okkam_config.polynomial.degree_bits_num), Style::new().bold())),
+    ];
+    let polynomial_config_paragraph = Paragraph::new(polynomial_config_text)
+        .block(create_block("Polynomial"))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: true });
+
+    (okkam_general_config_paragraph, ga_config_paragraph, polynomial_config_paragraph)
+}
+
 fn create_table(app_history: &[App]) -> Table {
     let header_style = Style::default().fg(Color::White).bg(Color::Cyan);
     let header = [
         Span::styled("Iteration", Style::new().bold()),
+        Span::styled("Average time per iteration", Style::new().bold()),
         Span::styled("Mean Absolute Error", Style::new().bold()),
         Span::styled("Mean Absolute Percentage Error (%)", Style::new().bold()),
         Span::styled("Root Mean Squared Error", Style::new().bold()),
@@ -250,6 +316,7 @@ fn create_table(app_history: &[App]) -> Table {
         .map(|app| {
             Row::new(vec![
                 Cell::from(app.iteration.to_string()),
+                Cell::from(format!("{:?}", app.avg_duration_per_iteration)),
                 Cell::from(app.best_mae.to_string()),
                 Cell::from(app.best_mape.to_string()),
                 Cell::from(app.best_rmse.to_string()),

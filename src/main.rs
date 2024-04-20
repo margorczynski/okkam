@@ -78,9 +78,10 @@ async fn main() -> Result<()> {
         search_loop(&config, &dataset, &mut result_writer, None, None)
     } else {
         info!("✓ Starting terminal UI...");
+        let config_clone = config.clone();
         let computation =
             move |tx, rx| search_loop(&config, &dataset, &mut result_writer, Some(tx), Some(rx));
-        run_ui(computation).unwrap();
+        run_ui(&config_clone, computation).unwrap();
     }
 
     Ok(())
