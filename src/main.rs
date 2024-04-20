@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
     //Prepare output file with the best found polynomials
     let result_file = OpenOptions::new()
         .write(true)
-        .append(true)
+        .append(false)
         .create(true)
         .open(config.result_path.as_ref())
         .unwrap();
