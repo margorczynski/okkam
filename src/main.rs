@@ -61,7 +61,7 @@ async fn main() -> Result<()> {
     info!("{:?}", config);
 
     if args.headless {
-        info!("Strating in headless mode...");
+        info!("Starting in headless mode...");
         search_loop(&config, &dataset, &mut result_writer, None, None)
     } else {
         info!("Starting terminal UI...");

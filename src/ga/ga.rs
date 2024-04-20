@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use itertools::Itertools;
 use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
@@ -64,10 +65,12 @@ pub fn evolve<T: PartialEq + PartialOrd + Clone + Eq + Send>(
 
     debug!("Elite amount: {}", elite_amount);
 
-    let mut chromosomes_with_fitness_ordered: Vec<ChromosomeWithFitness<T>> =
-        chromosomes_with_fitness.into_iter().cloned().collect();
-
-    chromosomes_with_fitness_ordered.sort_unstable();
+    let chromosomes_with_fitness_ordered: Vec<ChromosomeWithFitness<T>> =
+        chromosomes_with_fitness
+        .iter()
+        .cloned()
+        .sorted()
+        .collect();
 
     let elite = chromosomes_with_fitness_ordered
         .par_iter()
@@ -117,7 +120,6 @@ fn select<T: PartialEq + PartialOrd + Clone + Eq + Send>(
     match *selection_strategy {
         SelectionStrategy::Tournament(tournament_size) => {
             let mut rng = SmallRng::from_entropy();
-            //TODO: If chromosomes.len = 0 OR tournament_size > chromosomes.len -> panic
             let mut get_winner = |cwf: &HashSet<ChromosomeWithFitness<T>>| {
                 cwf.iter()
                     .choose_multiple(&mut rng, tournament_size)
