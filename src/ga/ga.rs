@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use log::debug;
 use rand::distributions::Uniform;
 use rand::prelude::*;
-use rand::{Rng, SeedableRng};
 use rand_distr::Binomial;
+use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
 use rayon::prelude::*;
 
 use crate::ga::chromosome::Chromosome;
@@ -115,7 +116,7 @@ fn select<T: PartialEq + PartialOrd + Clone + Eq + Send>(
 ) -> (Chromosome, Chromosome) {
     match *selection_strategy {
         SelectionStrategy::Tournament(tournament_size) => {
-            let mut rng = thread_rng();
+            let mut rng = SmallRng::from_entropy();
             //TODO: If chromosomes.len = 0 OR tournament_size > chromosomes.len -> panic
             let mut get_winner = |cwf: &HashSet<ChromosomeWithFitness<T>>| {
                 cwf.iter()
@@ -139,7 +140,7 @@ fn crossover(
     _crossover_rate: f32,
     mutation_rate: f32,
 ) -> (Chromosome, Chromosome) {
-    let mut rng = thread_rng();
+    let mut rng = SmallRng::from_entropy();
 
     let chromosome_len = parents.0.genes.len();
 
