@@ -195,7 +195,7 @@ mod evolution_tests {
 
     #[test]
     fn generate_initial_population_test() {
-        setup(&log::LevelFilter::Debug, "", true);
+        setup(&log::LevelFilter::Debug, None, true);
         let result = generate_initial_population(100, 50);
 
         assert_eq!(result.len(), 100);
@@ -204,7 +204,7 @@ mod evolution_tests {
 
     #[test]
     fn evolve_test() {
-        setup(&log::LevelFilter::Debug, "", true);
+        setup(&log::LevelFilter::Debug, None, true);
         let selection_strategy = SelectionStrategy::Tournament(4);
         let chromosomes_with_fitness = HashSet::from_iter(vec![
             ChromosomeWithFitness::from_chromosome_and_fitness(
@@ -248,7 +248,7 @@ mod evolution_tests {
 
     #[test]
     fn select_test() {
-        setup(&log::LevelFilter::Debug, "", true);
+        setup(&log::LevelFilter::Debug, None, true);
         let selection_strategy = SelectionStrategy::Tournament(5);
         let chromosomes_with_fitness = HashSet::from_iter(vec![
             ChromosomeWithFitness::from_chromosome_and_fitness(

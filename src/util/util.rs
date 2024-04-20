@@ -9,20 +9,25 @@ pub type Dataset = Vec<(Vec<f32>, f32)>;
 
 static INIT: Once = Once::new();
 
-pub fn setup(log_level: &LevelFilter, log_directory: &str, is_headless: bool) {
+pub fn setup(log_level: &LevelFilter, log_directory: Option<&str>, is_headless: bool) {
     INIT.call_once(|| {
         let logger = Logger::try_with_str(log_level.as_str()).unwrap();
-        let file_spec = FileSpec::default().directory(log_directory);
 
-        let file_or_stdout_logger = if is_headless {
-            logger
-                .log_to_file(file_spec)
-                .duplicate_to_stdout(flexi_logger::Duplicate::All)
-        } else {
-            logger.log_to_file(file_spec)
+        let logger_configured = match log_directory {
+            Some(log_directory_val) => {
+                let file_spec = FileSpec::default().directory(log_directory_val);
+                if is_headless {
+                    logger
+                        .log_to_file(file_spec)
+                        .duplicate_to_stdout(flexi_logger::Duplicate::All)
+                } else {
+                    logger.log_to_file(file_spec)
+                }
+            }
+            None => logger.log_to_stdout(),
         };
 
-        file_or_stdout_logger.start().unwrap();
+        logger_configured.start().unwrap();
     });
 }
 

@@ -38,7 +38,11 @@ async fn main() -> Result<()> {
     let config = OkkamConfig::new(&args.config_path).unwrap();
 
     //Setup logging
-    setup(&config.log_level.0, &config.log_directory, args.headless);
+    setup(
+        &config.log_level.0,
+        Some(&config.log_directory),
+        args.headless,
+    );
 
     //Load dataset from CSV file
     let csv_file = File::open(config.dataset_path.as_ref())?;
