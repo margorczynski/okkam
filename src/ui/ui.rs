@@ -22,9 +22,9 @@ use ratatui::{
 pub struct App {
     pub iteration: usize,
     pub avg_duration_per_iteration: Duration,
-    pub best_mae: f32,
-    pub best_mape: f32,
-    pub best_rmse: f32,
+    pub best_mae: f64,
+    pub best_mape: f64,
+    pub best_rmse: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -164,7 +164,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
         let mae_data: Vec<(f64, f64)> = app_history
             .iter()
             .filter(|app| app.best_mae.is_finite())
-            .map(|app| app.best_mae.log10() as f64)
+            .map(|app| app.best_mae.log10())
             .enumerate()
             .map(|(idx, mae)| (idx as f64, mae))
             .collect();
@@ -172,7 +172,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
         let mape_data: Vec<(f64, f64)> = app_history
             .iter()
             .filter(|app| app.best_mape.is_finite())
-            .map(|app| app.best_mape.log10() as f64)
+            .map(|app| app.best_mape.log10())
             .enumerate()
             .map(|(idx, mape)| (idx as f64, mape))
             .collect();
@@ -180,7 +180,7 @@ fn render_app(frame: &mut Frame, app_history: &[App]) {
         let rmse_data: Vec<(f64, f64)> = app_history
             .iter()
             .filter(|app| app.best_rmse.is_finite())
-            .map(|app| app.best_rmse.log10() as f64)
+            .map(|app| app.best_rmse.log10())
             .enumerate()
             .map(|(idx, mape)| (idx as f64, mape))
             .collect();

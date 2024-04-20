@@ -120,9 +120,9 @@ impl Polynomial {
         }
     }
 
-    pub fn evaluate(&self, inputs: &[f32]) -> f32 {
+    pub fn evaluate(&self, inputs: &[f64]) -> f64 {
         //Assume inputs.len == every term.degrees len
-        let mut output = self.constant.to_f32();
+        let mut output = self.constant.to_f64();
 
         output += self
             .terms
@@ -132,10 +132,10 @@ impl Polynomial {
                     .iter()
                     .zip(inputs.iter())
                     .map(|(degree, input)| input.powi(*degree as i32))
-                    .product::<f32>()
-                    * term.coefficient.to_f32()
+                    .product::<f64>()
+                    * term.coefficient.to_f64()
             })
-            .sum::<f32>();
+            .sum::<f64>();
 
         output
     }

@@ -5,7 +5,7 @@ use std::{error::Error, io::Read, sync::Once};
 use flexi_logger::{FileSpec, Logger};
 use log::LevelFilter;
 
-pub type Dataset = Vec<(Vec<f32>, f32)>;
+pub type Dataset = Vec<(Vec<f64>, f64)>;
 
 static INIT: Once = Once::new();
 
@@ -91,8 +91,8 @@ pub fn dataset_from_csv<R: Read>(
         let mut record_iter = record.iter();
 
         if let Some(target) = record_iter.next_back() {
-            let target: f32 = target.parse()?;
-            let features: Result<Vec<_>, _> = record_iter.map(|cell| cell.parse::<f32>()).collect();
+            let target: f64 = target.parse()?;
+            let features: Result<Vec<_>, _> = record_iter.map(|cell| cell.parse::<f64>()).collect();
             dataset.push((features?, target));
         }
     }

@@ -64,6 +64,7 @@ async fn main() -> Result<()> {
     let mut result_writer = Writer::from_writer(result_file);
     info!("✓ Result CSV file writer created, will persist result under: {}", result_path.canonicalize().unwrap().to_str().unwrap());
     
+    //Either start the UI or continue with just the CLI raw mode
     if args.headless {
         info!("✓ Starting in headless mode...");
         search_loop(&config, &dataset, &mut result_writer, None, None)
@@ -84,6 +85,7 @@ fn search_loop(
     tx_o: Option<Sender<Message>>,
     rx_o: Option<Receiver<Message>>,
 ) {
+    info!("✓ Starting the main search loop");
     //Get the number of variables and calculate chromosome bit length
     let variable_num = dataset.first().unwrap().0.len();
     let chromosome_bit_len = Polynomial::get_bits_needed(
@@ -91,31 +93,37 @@ fn search_loop(
         okkam_config.polynomial.degree_bits_num,
         variable_num,
     );
+    debug!("variable_num={}, chromosome_bit_len={}", variable_num, chromosome_bit_len);
+
 
     //Generate initial population and initialize basic values
     let mut population =
         generate_initial_population(okkam_config.ga.population_size, chromosome_bit_len);
     let mut iteration = 0;
-    let mut lowest_err: f32 = f32::INFINITY;
+    let mut lowest_err: f64 = f64::INFINITY;
     let loop_start = Instant::now();
+    debug!("Generated initial population with the size: {}", population.len());
 
     let header = get_header_record(okkam_config.polynomial.terms_num, variable_num);
-    result_writer.write_record(header).unwrap();
+    result_writer.write_record(&header).unwrap();
     result_writer.flush().unwrap();
-
-    info!("Starting main GA search loop");
+    debug!("Written header to CSV result file: {:?}", &header);
 
     loop {
+        debug!("Search loop start. Iteration: {}", iteration);
         match &rx_o {
             Some(rx) => match rx.try_recv() {
-                Ok(Message::Quit) => break,
+                Ok(Message::Quit) => {
+                    debug!("Loop received Quit message, quitting...");
+                    break;
+                },
                 _ => (),
             },
             None => (),
         }
 
         //Use rank instead as f32 is not Eq + the GA algo doesn't care about the amount of error, just if it's better/worse than the other
-        let mut chromosomes_with_diffs: Vec<(&Chromosome, Polynomial, Vec<f32>, f32)> = population
+        let mut chromosomes_with_diffs: Vec<(&Chromosome, Polynomial, Vec<f64>, f64)> = population
             .par_iter()
             .map(|chromosome| {
                 let polynomial = Polynomial::from_chromosome(
@@ -124,7 +132,7 @@ fn search_loop(
                     variable_num,
                     chromosome,
                 );
-                let diffs: Vec<f32> = dataset
+                let diffs: Vec<f64> = dataset
                     .iter()
                     .map(|(inputs, output)| (polynomial.evaluate(inputs) - output).abs())
                     .collect();
@@ -132,10 +140,11 @@ fn search_loop(
                 (chromosome, polynomial.clone(), diffs, sum)
             })
             .collect();
+        debug!("chromosomes_with_diffs calculated");
 
         chromosomes_with_diffs.par_sort_by(|a, b| {
-            let a_diff_sum: f32 = a.3;
-            let b_diff_sum: f32 = b.3;
+            let a_diff_sum: f64 = a.3;
+            let b_diff_sum: f64 = b.3;
 
             let a_is_nan = a_diff_sum.is_nan();
             let b_is_nan = b_diff_sum.is_nan();
@@ -150,20 +159,22 @@ fn search_loop(
                 a_diff_sum.partial_cmp(&b_diff_sum).unwrap()
             }
         });
+        debug!("chromosomes_with_diffs sorted");
 
         let lowest_err_chromosome = chromosomes_with_diffs.first().unwrap();
         let total_abs_error = lowest_err_chromosome.3;
 
         if total_abs_error < lowest_err {
-            let n = dataset.len() as f32;
+            debug!("New lowest error found. lowest_err={}, total_abs_error={}", lowest_err, total_abs_error);
+            let n = dataset.len() as f64;
             let mae = total_abs_error / n;
-            let mape = (100.0f32 * total_abs_error)
-                / (n * dataset.iter().map(|(_, expected)| expected).sum::<f32>());
+            let mape = (100.0f64 * total_abs_error)
+                / (n * dataset.iter().map(|(_, expected)| expected).sum::<f64>());
             let rmse = (lowest_err_chromosome
                 .2
                 .iter()
                 .map(|diff| diff.powi(2))
-                .sum::<f32>()
+                .sum::<f64>()
                 / n)
                 .sqrt();
             let new_state = App {
@@ -185,6 +196,7 @@ fn search_loop(
             let record = get_polynomial_record(&lowest_err_chromosome.1, mae, mape, rmse);
             result_writer.write_record(record).unwrap();
             result_writer.flush().unwrap();
+            debug!("Saved new best result to CSV");
 
             lowest_err = total_abs_error;
         }
@@ -200,6 +212,7 @@ fn search_loop(
                 )
             })
             .collect::<HashSet<ChromosomeWithFitness<u32>>>();
+        debug!("chromosomes_with_fitness calculated");
 
         population = evolve(
             &chromosomes_with_fitness,
@@ -207,6 +220,7 @@ fn search_loop(
             okkam_config.ga.mutation_rate,
             okkam_config.ga.elite_factor,
         );
+        debug!("Population set to new evolution result");
 
         iteration += 1;
     }
@@ -232,7 +246,7 @@ fn get_header_record(terms_num: usize, variable_num: usize) -> Vec<String> {
     polynomial_header_record
 }
 
-fn get_polynomial_record(polynomial: &Polynomial, mae: f32, mape: f32, rmse: f32) -> Vec<String> {
+fn get_polynomial_record(polynomial: &Polynomial, mae: f64, mape: f64, rmse: f64) -> Vec<String> {
     let mut polynomial_record: Vec<String> = Vec::new();
 
     for term in &polynomial.terms {
