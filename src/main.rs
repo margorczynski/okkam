@@ -22,8 +22,8 @@ use tokio::time::Instant;
 use ui::ui::{App, Message};
 use util::util::Dataset;
 
-use crate::config::okkam_config::OkkamConfig;
 use crate::config::error_measure::ErrorMeasure::*;
+use crate::config::okkam_config::OkkamConfig;
 use crate::ga::chromosome::Chromosome;
 use crate::ga::chromosome_with_fitness::ChromosomeWithFitness;
 use crate::ga::ga::*;
@@ -52,7 +52,11 @@ async fn main() -> Result<()> {
     //Load dataset from CSV file
     let csv_file = File::open(config.dataset_path.as_ref())?;
     let dataset = dataset_from_csv(csv_file, false, ',').unwrap();
-    info!("✓ Loaded {} rows from the input dataset, number of variables is {}", dataset.len(), dataset.first().unwrap().0.len());
+    info!(
+        "✓ Loaded {} rows from the input dataset, number of variables is {}",
+        dataset.len(),
+        dataset.first().unwrap().0.len()
+    );
 
     //Prepare output file with the best found polynomials
     let result_path = Path::new(config.result_path.as_ref());
@@ -63,8 +67,11 @@ async fn main() -> Result<()> {
         .open(result_path)
         .unwrap();
     let mut result_writer = Writer::from_writer(result_file);
-    info!("✓ Result CSV file writer created, will persist result under: {}", result_path.canonicalize().unwrap().to_str().unwrap());
-    
+    info!(
+        "✓ Result CSV file writer created, will persist result under: {}",
+        result_path.canonicalize().unwrap().to_str().unwrap()
+    );
+
     //Either start the UI or continue with just the CLI raw mode
     if args.headless {
         info!("✓ Starting in headless mode...");
@@ -94,8 +101,10 @@ fn search_loop(
         okkam_config.polynomial.degree_bits_num,
         variable_num,
     );
-    debug!("variable_num={}, chromosome_bit_len={}", variable_num, chromosome_bit_len);
-
+    debug!(
+        "variable_num={}, chromosome_bit_len={}",
+        variable_num, chromosome_bit_len
+    );
 
     //Generate initial population and initialize basic values
     let mut population =
@@ -103,7 +112,10 @@ fn search_loop(
     let mut iteration = 0;
     let mut lowest_err: f64 = f64::INFINITY;
     let loop_start = Instant::now();
-    debug!("Generated initial population with the size: {}", population.len());
+    debug!(
+        "Generated initial population with the size: {}",
+        population.len()
+    );
 
     let header = get_header_record(okkam_config.polynomial.terms_num, variable_num);
     result_writer.write_record(&header).unwrap();
@@ -117,7 +129,7 @@ fn search_loop(
                 Ok(Message::Quit) => {
                     debug!("Loop received Quit message, quitting...");
                     break;
-                },
+                }
                 _ => (),
             },
             None => (),
@@ -140,10 +152,13 @@ fn search_loop(
 
                 let n = dataset.len() as f64;
                 let mae = abs_diffs.iter().sum::<f64>() / n;
-                let mape = 
-                    (abs_diffs.iter().zip(dataset.iter().map(|ds| ds.1))
+                let mape = (abs_diffs
+                    .iter()
+                    .zip(dataset.iter().map(|ds| ds.1))
                     .map(|(abs_diff, expected)| abs_diff / expected.abs())
-                    .sum::<f64>() * 100.0f64) / n;
+                    .sum::<f64>()
+                    * 100.0f64)
+                    / n;
                 let rmse = (abs_diffs.iter().map(|diff| diff.powi(2)).sum::<f64>() / n).sqrt();
                 (chromosome, polynomial.clone(), mae, mape, rmse)
             })
@@ -154,7 +169,7 @@ fn search_loop(
             let a_measure: f64;
             let b_measure: f64;
 
-            match &okkam_config.minimized_error_measure  {
+            match &okkam_config.minimized_error_measure {
                 MAE => {
                     a_measure = a.2;
                     b_measure = b.2;
@@ -162,13 +177,16 @@ fn search_loop(
                 MAPE => {
                     a_measure = a.3;
                     b_measure = b.3;
-                },
+                }
                 RMSE => {
                     a_measure = a.4;
                     b_measure = b.4;
-                },
+                }
             };
-            debug!("chromosomes_with_errors sorted with measure: {:?}", &okkam_config.minimized_error_measure);
+            debug!(
+                "chromosomes_with_errors sorted with measure: {:?}",
+                &okkam_config.minimized_error_measure
+            );
 
             let a_is_nan = a_measure.is_nan();
             let b_is_nan = b_measure.is_nan();
@@ -191,7 +209,10 @@ fn search_loop(
         let best_rmse = lowest_err_chromosome.4;
 
         if best_mae < lowest_err {
-            debug!("New lowest MAE found. lowest_err={}, best_mae={}", lowest_err, best_mae);
+            debug!(
+                "New lowest MAE found. lowest_err={}, best_mae={}",
+                lowest_err, best_mae
+            );
 
             let new_state = App {
                 iteration: iteration,
@@ -209,7 +230,8 @@ fn search_loop(
             }
 
             //Write the record with the polynomial information to the CSV file
-            let record = get_polynomial_record(&lowest_err_chromosome.1, best_mae, best_mape, best_rmse);
+            let record =
+                get_polynomial_record(&lowest_err_chromosome.1, best_mae, best_mape, best_rmse);
             result_writer.write_record(record).unwrap();
             result_writer.flush().unwrap();
             debug!("Saved new best result to CSV");

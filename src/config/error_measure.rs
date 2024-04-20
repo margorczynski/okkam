@@ -4,5 +4,5 @@ use serde::Deserialize;
 pub enum ErrorMeasure {
     MAE,
     MAPE,
-    RMSE
+    RMSE,
 }

@@ -4,7 +4,9 @@ use config::{Config, ConfigError, Environment, File};
 use log::{debug, LevelFilter};
 use serde::{Deserialize, Deserializer};
 
-use super::{error_measure::ErrorMeasure, ga_config::GaConfig, polynomial_config::PolynomialConfig};
+use super::{
+    error_measure::ErrorMeasure, ga_config::GaConfig, polynomial_config::PolynomialConfig,
+};
 
 #[derive(Debug)]
 pub struct LevelFilterWrapper(pub LevelFilter);
