@@ -293,7 +293,7 @@ fn create_config_info(okkam_config: &OkkamConfig) -> (Paragraph<'_>, Paragraph<'
         )),
     ];
     let okkam_general_config_paragraph = Paragraph::new(okkam_general_config_text)
-        .block(create_block("General"))
+        .block(create_block("General Settings"))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
 

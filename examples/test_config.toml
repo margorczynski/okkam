@@ -1,15 +1,26 @@
+# The log level (Off, Error, Warn, Info, Debug, Trace)
 log_level = "INFO"
+# The directory that will be used to store the logfile
 log_directory = "./logs"
+# Path to the dataset file (CSV format)
 dataset_path = "examples/test_dataset.csv"
+# Path to the file that will be created to store the results for the best polynomials found
 result_path = "okkam_result.csv"
+# The measure which the GA will try to minimize
 minimized_error_measure = "MAE"
 
 [ga]
+# Population size
 population_size = 512
-tournament_size = 16
+# Tournament size for selection
+tournament_size = 8
+# Mutation rate (here 10%)
 mutation_rate = 0.1
+# Elite factor (percentage of top individuals to preserve, here 10%)
 elite_factor = 0.1
 
 [polynomial]
+# Number of terms in the polynomial
 terms_num = 12
-degree_bits_num = 3
+# Number of bits to represent the degree of each variable (2^4 = 16 so the degree is in the range of 0..(2^4-1))
+degree_bits_num = 4
