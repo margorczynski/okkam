@@ -10,12 +10,13 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs::{File, OpenOptions};
 use std::io::Result;
+use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender};
 
 use clap::Parser;
 use csv::Writer;
 
-use log::info;
+use log::{debug, info};
 use rayon::prelude::*;
 use tokio::time::Instant;
 use ui::ui::{App, Message};
@@ -43,28 +44,31 @@ async fn main() -> Result<()> {
         Some(&config.log_directory),
         args.headless,
     );
+    info!("✓ Started Okkam with the following arguments: {:?}", args);
+    info!("✓ Loaded config: {:?}", config);
+    info!("✓ Initialized logging");
 
     //Load dataset from CSV file
     let csv_file = File::open(config.dataset_path.as_ref())?;
     let dataset = dataset_from_csv(csv_file, false, ',').unwrap();
+    info!("✓ Loaded {} rows from the input dataset, number of variables is {}", dataset.len(), dataset.first().unwrap().0.len());
 
     //Prepare output file with the best found polynomials
+    let result_path = Path::new(config.result_path.as_ref());
     let result_file = OpenOptions::new()
         .write(true)
         .append(false)
         .create(true)
-        .open(config.result_path.as_ref())
+        .open(result_path)
         .unwrap();
     let mut result_writer = Writer::from_writer(result_file);
-
-    info!("Starting Okkam with the following configuration:");
-    info!("{:?}", config);
-
+    info!("✓ Result CSV file writer created, will persist result under: {}", result_path.canonicalize().unwrap().to_str().unwrap());
+    
     if args.headless {
-        info!("Starting in headless mode...");
+        info!("✓ Starting in headless mode...");
         search_loop(&config, &dataset, &mut result_writer, None, None)
     } else {
-        info!("Starting terminal UI...");
+        info!("✓ Starting terminal UI...");
         let computation =
             move |tx, rx| search_loop(&config, &dataset, &mut result_writer, Some(tx), Some(rx));
         run_ui(computation).unwrap();
