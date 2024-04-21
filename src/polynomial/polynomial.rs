@@ -2,6 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use half::prelude::*;
 use itertools::Itertools;
+use rand_distr::num_traits::Pow;
 
 use crate::{
     ga::chromosome::Chromosome,
@@ -11,6 +12,7 @@ use crate::{
 #[derive(Clone)]
 pub struct Term {
     pub coefficient: f16,
+    //TODO: Change to degrees
     pub degrees: Vec<u8>,
 }
 
@@ -27,28 +29,41 @@ impl Polynomial {
 
     #[allow(dead_code)]
     pub fn to_chromosome(&self, degree_bits_num: usize) -> Chromosome {
-        let mut genes = Vec::new();
+        let size = Self::get_bits_needed(self.terms.len(), degree_bits_num, self.terms.first().unwrap().degrees.len());
+        let mut genes = vec![0u64; size/64 + 1];
+        let mut bit_count = 0;
 
         // Encode the terms
         for term in &self.terms {
             // Encode the coefficient
-            let coefficient_bits = term.coefficient.to_bits();
-            genes.append(&mut bits_to_bit_vec_u16(&coefficient_bits));
+            let coefficient_bits = term.coefficient.to_bits() as u64;
+            for bit_pos in 0..16u64 {
+                let coefficient_bit = (coefficient_bits >> bit_pos) & 1;
 
-            // Encode the degrees
-            for degree in &term.degrees {
-                let degree_bit_vec = bits_to_bit_vec_u8(degree);
-                let degree_bit_vec_limited =
-                    degree_bit_vec.iter().rev().take(degree_bits_num).rev();
-                genes.extend(degree_bit_vec_limited);
+                genes[bit_count / 64] |= coefficient_bit  << (bit_count % 64);
+                bit_count += 1;
+            }
+
+            // Encode the exponents
+            for exponent in &term.degrees {
+                for bit_pos in 0..degree_bits_num {
+                    let exponent_bit = (exponent >> bit_pos) & 1;
+    
+                    genes[bit_count / 64] |= (exponent_bit as u64) << (bit_count % 64);
+                    bit_count += 1;
+                }
             }
         }
 
-        // Encode the constant
-        let constant_bits = self.constant.to_bits();
-        genes.append(&mut bits_to_bit_vec_u16(&constant_bits));
+        let constant_bits = self.constant.to_bits() as u64;
+        for bit_pos in 0..16u64 {
+            let constant_bit = (constant_bits >> bit_pos) & 1;
 
-        Chromosome { genes }
+            genes[bit_count / 64] |= constant_bit  << (bit_count % 64);
+            bit_count += 1;
+        }
+
+        Chromosome { size, genes }
     }
 
     pub fn from_chromosome(
@@ -58,37 +73,47 @@ impl Polynomial {
         chromosome: &Chromosome,
     ) -> Polynomial {
         let mut terms = Vec::new();
-        let mut gene_index = 0;
-
-        // Calculate the number of bits required for each term
-        let coefficient_bits = 16;
+        let mut bit_count = 0;
 
         for _ in 0..term_num {
-            let mut degrees: Vec<u8> = Vec::with_capacity(variable_num);
+            let mut exponents: Vec<u8> = Vec::with_capacity(variable_num);
             // Extract the coefficient bits
-            let coefficient_bits_vec =
-                chromosome.genes[gene_index..(gene_index + coefficient_bits)].to_vec();
-            gene_index += coefficient_bits;
-            let coefficient = f16::from_bits(bits_to_u16(&coefficient_bits_vec));
+
+            let mut coefficient_bits = 0u64;
+            for bit_pos in 0..16u64 {
+                let coefficient_bit = chromosome.genes[bit_count / 64] >> (bit_count % 64) & 1;
+
+                coefficient_bits |= coefficient_bit  << bit_pos;
+                bit_count += 1;
+            }
 
             for _ in 0..variable_num {
-                let degree_bits_vec =
-                    chromosome.genes[gene_index..(gene_index + degree_bits_num)].to_vec();
-                gene_index += degree_bits_num;
-                degrees.push(bits_to_u8(&degree_bits_vec));
+                let mut exponent = 0u64;
+                for bit_pos in 0..degree_bits_num {
+                    let exponent_bit = chromosome.genes[bit_count / 64] >> (bit_count % 64) & 1;
+    
+                    exponent |= exponent_bit  << bit_pos;
+                    bit_count += 1;
+                }
+
+                exponents.push(exponent as u8);
             }
 
             terms.push(Term {
-                coefficient,
-                degrees,
+                coefficient: f16::from_bits(coefficient_bits as u16),
+                degrees: exponents,
             });
         }
 
-        // Extract the constant bits
-        let constant_bits_vec = chromosome.genes[gene_index..].to_vec();
-        let constant = f16::from_bits(bits_to_u16(&constant_bits_vec));
+        let mut constant_bits = 0u64;
+        for bit_pos in 0..16u64 {
+            let constant_bit = chromosome.genes[bit_count / 64] >> (bit_count % 64) & 1;
 
-        Polynomial { terms, constant }
+            constant_bits |= constant_bit  << bit_pos;
+            bit_count += 1;
+        }
+
+        Polynomial { terms, constant: f16::from_bits(constant_bits as u16) }
     }
 
     #[allow(dead_code)]
@@ -347,6 +372,67 @@ mod tests {
     }
 
     #[test]
+    fn test_to_chromosome() {
+        let p1 = Polynomial {
+            terms: vec![
+                Term {
+                    coefficient: f16::from_f32(5.0),
+                    degrees: vec![2, 1],
+                },
+                Term {
+                    coefficient: f16::from_f32(-3.0),
+                    degrees: vec![1, 0],
+                },
+            ],
+            constant: f16::from_f32(7.0),
+        };
+
+        let p2 = Polynomial {
+            terms: vec![
+                Term {
+                    coefficient: f16::from_f32(5.0),
+                    degrees: vec![2, 1],
+                },
+                Term {
+                    coefficient: f16::from_f32(-3.0),
+                    degrees: vec![1, 0],
+                },
+                Term {
+                    coefficient: f16::from_f32(20.0),
+                    degrees: vec![2, 3],
+                },
+                Term {
+                    coefficient: f16::from_f32(4.0),
+                    degrees: vec![2, 0],
+                },
+            ],
+            constant: f16::from_f32(7.0),
+        };
+
+        let chromosome1 = p1.to_chromosome(2);
+        let chromosome2 = p2.to_chromosome(2);
+
+        let expected_chromosome1 = Chromosome {
+            size: 56,
+            genes: vec![
+                0b01000111000000000001110000100000000001100100010100000000,
+            ],
+        };
+
+        let expected_chromosome2 = Chromosome {
+            size: 96,
+            genes: vec![
+                0b0000111001001101000000000001110000100000000001100100010100000000,
+                0b01000111000000000010010001000000
+            ],
+        };
+
+
+        assert_eq!(chromosome1, expected_chromosome1);
+        assert_eq!(chromosome2, expected_chromosome2);
+    }
+
+    #[test]
     fn test_to_from_chromosome() {
         // 3.0*x0^3*x1*x2^5 + 15.0*x0*x1^4 + x2 + 1.0
 
@@ -375,7 +461,7 @@ mod tests {
         //Constant is 16, total = 28 * 3 + 16 = 100 bits
 
         // Check that the chromosome has the correct length
-        assert_eq!(chromosome.genes.len(), Polynomial::get_bits_needed(3, 4, 3));
+        assert_eq!(100, Polynomial::get_bits_needed(3, 4, 3));
         assert_eq!(poly, from_chromosome);
     }
 }

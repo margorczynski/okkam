@@ -29,22 +29,26 @@ pub fn generate_initial_population(
     let mut rng = StdRng::from_entropy();
     let mut population: HashSet<Chromosome> = HashSet::new();
 
-    //TODO: Refactor this
+    let gene_blocks_needed = (chromosome_size / 64) + 1;
+
+    println!("Gene block needed {}", gene_blocks_needed);
+
     let res = (0..initial_population_count).into_par_iter().map(|_| {
         let mut rng_clone = rng.clone();
-        let random_genes = (0..chromosome_size)
-            .map(|_| rng_clone.gen::<bool>())
+        
+        let random_genes = (0..gene_blocks_needed)
+            .map(|_| rng_clone.gen::<u64>())
             .collect();
 
-        Chromosome::from_genes(random_genes)
+        Chromosome::from_genes(chromosome_size, random_genes)
     });
 
     population.par_extend(res);
 
     while population.len() < initial_population_count {
-        let random_genes = (0..chromosome_size).map(|_| rng.gen::<bool>()).collect();
+        let random_genes = (0..gene_blocks_needed).map(|_| rng.gen::<u64>()).collect();
 
-        let chromosome = Chromosome::from_genes(random_genes);
+        let chromosome = Chromosome::from_genes(chromosome_size, random_genes);
 
         population.insert(chromosome);
     }
@@ -52,6 +56,7 @@ pub fn generate_initial_population(
     population
 }
 
+// TODO: Change to be done in-place? Use Vec and take fitness as separate param
 pub fn evolve<T: PartialEq + PartialOrd + Clone + Eq + Send>(
     chromosomes_with_fitness: &HashSet<ChromosomeWithFitness<T>>,
     selection_strategy: SelectionStrategy,
@@ -139,21 +144,33 @@ fn crossover(
     mutation_rate: f32,
 ) -> (Chromosome, Chromosome) {
     let mut rng = SmallRng::from_entropy();
-
-    let chromosome_len = parents.0.genes.len();
+    let chromosome_len = parents.0.size;
 
     let crossover_point = rng.gen_range(1..(chromosome_len - 1));
 
-    let (fst_left, fst_right) = parents.0.genes.split_at(crossover_point);
-    let (snd_left, snd_right) = parents.1.genes.split_at(crossover_point);
+    //Calculate which blocks will go to the left and right children
+    let crossover_gene_block_index = crossover_point / 64;
 
-    let mut fst_child_genes: Vec<bool> = Vec::new();
-    let mut snd_child_genes: Vec<bool> = Vec::new();
+    //Important - for the right ones we need to take the tail as we'll need to manually split it using masks/bit shifts
+    let (fst_left, fst_right_with_extra) = parents.0.genes.split_at(crossover_gene_block_index);
+    let (snd_left, snd_right_with_extra) = parents.1.genes.split_at(crossover_gene_block_index);
+
+    let mut fst_child_genes: Vec<u64> = Vec::new();
+    let mut snd_child_genes: Vec<u64> = Vec::new();
+
+    let bit_split_position_in_block = crossover_point % 64;
+    let left_mask: u64 = u64::MAX >> bit_split_position_in_block;
+    let right_mask = !left_mask;
+
+    let fst_parent_block_after_split = parents.0.genes[crossover_gene_block_index] & left_mask;
+    let snd_parent_block_after_split = parents.1.genes[crossover_gene_block_index] & right_mask;
 
     fst_child_genes.extend(fst_left);
-    fst_child_genes.extend(snd_right);
+    fst_child_genes.push(fst_parent_block_after_split);
+    fst_child_genes.extend(snd_right_with_extra.iter().skip(1));
 
-    snd_child_genes.extend(fst_right);
+    snd_child_genes.extend(fst_right_with_extra.iter().skip(1));
+    snd_child_genes.push(snd_parent_block_after_split);
     snd_child_genes.extend(snd_left);
 
     let binomial = Binomial::new(chromosome_len as u64, mutation_rate as f64).unwrap();
@@ -173,15 +190,19 @@ fn crossover(
     }
 
     for mutated_idx in fst_mutation_indices {
-        fst_child_genes[mutated_idx] = !fst_child_genes[mutated_idx];
+        let gene_idx = mutated_idx / 64;
+        let bit_idx = mutated_idx % 64;
+        fst_child_genes[gene_idx] ^= 1 << bit_idx;
     }
     for mutated_idx in snd_mutation_indices {
-        snd_child_genes[mutated_idx] = !snd_child_genes[mutated_idx];
+        let gene_idx = mutated_idx / 64;
+        let bit_idx = mutated_idx % 64;
+        snd_child_genes[gene_idx] ^= 1 << bit_idx;
     }
 
     (
-        Chromosome::from_genes(fst_child_genes),
-        Chromosome::from_genes(snd_child_genes),
+        Chromosome::from_genes(chromosome_len, fst_child_genes),
+        Chromosome::from_genes(chromosome_len, snd_child_genes),
     )
 }
 
@@ -198,7 +219,8 @@ mod evolution_tests {
         let result = generate_initial_population(100, 50);
 
         assert_eq!(result.len(), 100);
-        assert_eq!(result.iter().all(|c| c.genes.len() == 50), true)
+        assert_eq!(result.iter().all(|c| c.size == 50), true);
+        assert_eq!(result.iter().all(|c| c.genes.len() <= 1), true)
     }
 
     #[test]
@@ -207,31 +229,38 @@ mod evolution_tests {
         let selection_strategy = SelectionStrategy::Tournament(4);
         let chromosomes_with_fitness = HashSet::from_iter(vec![
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![true, true, true, false]),
+                //1110
+                Chromosome::from_genes(4, vec![14]),
                 0,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![true, false, false, false]),
+                //1000
+                Chromosome::from_genes(4, vec![8]),
                 10,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, true, false, false]),
+                //0100
+                Chromosome::from_genes(4, vec![4]),
                 15,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, false, true, false]),
+                //0010
+                Chromosome::from_genes(4, vec![2]),
                 20,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, false, false, true]),
+                //0001
+                Chromosome::from_genes(4, vec![1]),
                 25,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![true, true, true, true]),
+                //1111
+                Chromosome::from_genes(4, vec![15]),
                 30,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, false, false, false]),
+                //0000
+                Chromosome::from_genes(4, vec![0]),
                 40,
             ),
         ]);
@@ -241,8 +270,8 @@ mod evolution_tests {
         debug!("Evo test result: {:?}", result);
 
         assert_eq!(result.len(), 7);
-        assert!(result.contains(&Chromosome::from_genes(vec![true, true, true, true])));
-        assert!(result.contains(&Chromosome::from_genes(vec![false, false, false, false])));
+        assert!(result.contains(&Chromosome::from_genes(4, vec![15])));
+        assert!(result.contains(&Chromosome::from_genes(4, vec![0])));
     }
 
     #[test]
@@ -251,23 +280,28 @@ mod evolution_tests {
         let selection_strategy = SelectionStrategy::Tournament(5);
         let chromosomes_with_fitness = HashSet::from_iter(vec![
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![true, false, false, false]),
+                //1000
+                Chromosome::from_genes(4, vec![8]),
                 10,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, true, false, false]),
+                //0100
+                Chromosome::from_genes(4, vec![4]),
                 15,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, false, true, false]),
+                //0010
+                Chromosome::from_genes(4, vec![2]),
                 20,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![false, false, false, true]),
+                //0001
+                Chromosome::from_genes(4, vec![1]),
                 25,
             ),
             ChromosomeWithFitness::from_chromosome_and_fitness(
-                Chromosome::from_genes(vec![true, true, true, true]),
+                //1111
+                Chromosome::from_genes(4, vec![15]),
                 30,
             ),
         ]);
@@ -276,7 +310,7 @@ mod evolution_tests {
 
         let results_set: HashSet<Chromosome> = HashSet::from_iter(vec![result.0, result.1]);
 
-        assert!(results_set.contains(&Chromosome::from_genes(vec![true, true, true, true])));
-        assert!(results_set.contains(&Chromosome::from_genes(vec![true, true, true, true])));
+        assert!(results_set.contains(&Chromosome::from_genes(4, vec![15])));
+        assert!(results_set.contains(&Chromosome::from_genes(4, vec![15])));
     }
 }

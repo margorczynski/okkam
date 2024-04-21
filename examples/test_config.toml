@@ -11,7 +11,7 @@ minimized_error_measure = "MAE"
 
 [ga]
 # Population size
-population_size = 512
+population_size = 1024
 # Tournament size for selection
 tournament_size = 8
 # Mutation rate (here 10%)
