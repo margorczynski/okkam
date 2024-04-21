@@ -2,12 +2,8 @@ use std::fmt::{Debug, Display, Formatter};
 
 use half::prelude::*;
 use itertools::Itertools;
-use rand_distr::num_traits::Pow;
 
-use crate::{
-    ga::chromosome::Chromosome,
-    util::util::{bits_to_bit_vec_u16, bits_to_bit_vec_u8, bits_to_u16, bits_to_u8},
-};
+use crate::ga::chromosome::Chromosome;
 
 #[derive(Clone)]
 pub struct Term {
