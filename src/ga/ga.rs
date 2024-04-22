@@ -148,30 +148,8 @@ fn crossover(
 
     let crossover_point = rng.gen_range(1..(chromosome_len - 1));
 
-    //Calculate which blocks will go to the left and right children
-    let crossover_gene_block_index = crossover_point / 64;
-
-    //Important - for the right ones we need to take the tail as we'll need to manually split it using masks/bit shifts
-    let (fst_left, fst_right_with_extra) = parents.0.genes.split_at(crossover_gene_block_index);
-    let (snd_left, snd_right_with_extra) = parents.1.genes.split_at(crossover_gene_block_index);
-
-    let mut fst_child_genes: Vec<u64> = Vec::new();
-    let mut snd_child_genes: Vec<u64> = Vec::new();
-
-    let bit_split_position_in_block = crossover_point % 64;
-    let left_mask: u64 = u64::MAX >> bit_split_position_in_block;
-    let right_mask = !left_mask;
-
-    let fst_parent_block_after_split = parents.0.genes[crossover_gene_block_index] & left_mask;
-    let snd_parent_block_after_split = parents.1.genes[crossover_gene_block_index] & right_mask;
-
-    fst_child_genes.extend(fst_left);
-    fst_child_genes.push(fst_parent_block_after_split);
-    fst_child_genes.extend(snd_right_with_extra.iter().skip(1));
-
-    snd_child_genes.extend(fst_right_with_extra.iter().skip(1));
-    snd_child_genes.push(snd_parent_block_after_split);
-    snd_child_genes.extend(snd_left);
+    let mut fst_child_genes = merge_gene_blocks(&parents.0.genes, &parents.1.genes, crossover_point);
+    let mut snd_child_genes = merge_gene_blocks(&parents.1.genes, &parents.0.genes, crossover_point);
 
     let binomial = Binomial::new(chromosome_len as u64, mutation_rate as f64).unwrap();
     let uniform = Uniform::new(0, chromosome_len);
@@ -204,6 +182,35 @@ fn crossover(
         Chromosome::from_genes(chromosome_len, fst_child_genes),
         Chromosome::from_genes(chromosome_len, snd_child_genes),
     )
+}
+
+fn merge_gene_blocks(gene_blocks_fst: &[u64], gene_blocks_snd: &[u64], crossover_point: usize) -> Vec<u64> {
+    let mut new_genes = Vec::new();
+    let crossover_block_idx = crossover_point / 64;
+
+    //We split the fst blocks at the crossover point and take all the blocks before it
+    let (left, _) = gene_blocks_fst.split_at(crossover_block_idx);
+    let (_, right) = gene_blocks_snd.split_at(crossover_block_idx);
+
+    new_genes.extend(left);
+
+    if crossover_point % 64 == 0 {
+        new_genes.extend(right.iter());
+    } else {
+        //Next we construct the block where the crossover point falls into using a left and right-side mask
+        let left_mask = !0u64 << (64 - (crossover_point % 64));
+        let right_mask = !left_mask;
+
+        new_genes.push(0u64);
+
+        new_genes[crossover_block_idx] |= gene_blocks_fst[crossover_block_idx] & left_mask;
+        new_genes[crossover_block_idx] |= gene_blocks_snd[crossover_block_idx] & right_mask;
+
+        //Finally we add up all the right-side blocks (skipping the first one which is the one we've constructed above)
+        new_genes.extend(right.iter().skip(1));
+    }
+
+    new_genes
 }
 
 #[cfg(test)]
@@ -312,5 +319,36 @@ mod evolution_tests {
 
         assert!(results_set.contains(&Chromosome::from_genes(4, vec![15])));
         assert!(results_set.contains(&Chromosome::from_genes(4, vec![15])));
+    }
+
+    #[test]
+    fn test_merge_gene_blocks() {
+        let gene_blocks_fst = [0x00FFFFFFFFFFFFFF];
+        let gene_blocks_snd = [0xFFFFFFFFFFFFF000];
+        let crossover_point = 32;
+
+        let expected_result = [0x00FFFFFFFFFFF000];
+
+        let result = merge_gene_blocks(&gene_blocks_fst, &gene_blocks_snd, crossover_point);
+
+        assert_eq!(result, expected_result);
+    }
+
+    #[test]
+    fn test_merge_gene_blocks_multiple_blocks() {
+        let gene_blocks_fst = [0x1111111111111111, 0b0001000100010001000100010001000100010001000100010001000100010001, 0x1111111111111111];
+        let gene_blocks_snd = [0xAAAAAAAAAAAAAAAA, 0b1010101010101010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
+
+        let expected_result_77 = [0x1111111111111111, 0b0001000100010010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
+        let expected_result_65 = [0x1111111111111111, 0b0010101010101010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
+        let expected_result_64 = [0x1111111111111111, 0b1010101010101010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
+
+        let result_77 = merge_gene_blocks(&gene_blocks_fst, &gene_blocks_snd, 77);
+        let result_65 = merge_gene_blocks(&gene_blocks_fst, &gene_blocks_snd, 65);
+        let result_64 = merge_gene_blocks(&gene_blocks_fst, &gene_blocks_snd, 64);
+
+        assert_eq!(result_77, expected_result_77);
+        assert_eq!(result_65, expected_result_65);
+        assert_eq!(result_64, expected_result_64);
     }
 }
