@@ -1,6 +1,6 @@
 [package]
 name = "okkam"
-version = "0.1.0"
+version = "0.3.0"
 authors = ["Marcin Gorczyński <margorczynski@gmail.com>"]
 edition = "2021"
 repository = "https://github.com/margorczynski/okkam"
