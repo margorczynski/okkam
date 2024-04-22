@@ -115,25 +115,31 @@ pub fn evolve<T: PartialEq + PartialOrd + Clone + Eq + Send>(
 }
 
 fn select<T: PartialEq + PartialOrd + Clone + Eq + Send>(
-    chromosomes_with_fitness: &HashSet<ChromosomeWithFitness<T>>,
+    chromosome_to_fitness_map: &HashSet<ChromosomeWithFitness<T>>,
     selection_strategy: &SelectionStrategy,
 ) -> (Chromosome, Chromosome) {
-    match *selection_strategy {
+    match selection_strategy {
         SelectionStrategy::Tournament(tournament_size) => {
             let mut rng = SmallRng::from_entropy();
-            let mut get_winner = |cwf: &HashSet<ChromosomeWithFitness<T>>| {
-                cwf.iter()
-                    .choose_multiple(&mut rng, tournament_size)
-                    .into_iter()
-                    .max()
-                    .unwrap()
-                    .clone()
-            };
+            let mut tournament_participants_double =
+                //TODO If the order isn't random then we can just use chromosomes + select head to get the max
+                chromosome_to_fitness_map
+                .into_iter()
+                .choose_multiple(&mut rng, tournament_size * 2);
 
-            let first = get_winner(&chromosomes_with_fitness);
-            let second = get_winner(&chromosomes_with_fitness);
+            let fst_winner =
+                tournament_participants_double
+                .drain(0..*tournament_size)
+                .max()
+                .unwrap();
 
-            (first.chromosome, second.chromosome)
+            let snd_winner =
+                tournament_participants_double
+                .into_iter()
+                .max()
+                .unwrap();
+
+            (fst_winner.chromosome.clone(), snd_winner.chromosome.clone())
         }
     }
 }
@@ -284,7 +290,7 @@ mod evolution_tests {
     #[test]
     fn select_test() {
         setup(&log::LevelFilter::Debug, None, true);
-        let selection_strategy = SelectionStrategy::Tournament(5);
+        let selection_strategy = SelectionStrategy::Tournament(3);
         let chromosomes_with_fitness = HashSet::from_iter(vec![
             ChromosomeWithFitness::from_chromosome_and_fitness(
                 //1000
