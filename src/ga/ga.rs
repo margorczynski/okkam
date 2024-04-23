@@ -35,7 +35,7 @@ pub fn generate_initial_population(
 
     let res = (0..initial_population_count).into_par_iter().map(|_| {
         let mut rng_clone = rng.clone();
-        
+
         let random_genes = (0..gene_blocks_needed)
             .map(|_| rng_clone.gen::<u64>())
             .collect();
@@ -127,17 +127,12 @@ fn select<T: PartialEq + PartialOrd + Clone + Eq + Send>(
                 .into_iter()
                 .choose_multiple(&mut rng, tournament_size * 2);
 
-            let fst_winner =
-                tournament_participants_double
+            let fst_winner = tournament_participants_double
                 .drain(0..*tournament_size)
                 .max()
                 .unwrap();
 
-            let snd_winner =
-                tournament_participants_double
-                .into_iter()
-                .max()
-                .unwrap();
+            let snd_winner = tournament_participants_double.into_iter().max().unwrap();
 
             (fst_winner.chromosome.clone(), snd_winner.chromosome.clone())
         }
@@ -154,8 +149,10 @@ fn crossover(
 
     let crossover_point = rng.gen_range(1..(chromosome_len - 1));
 
-    let mut fst_child_genes = merge_gene_blocks(&parents.0.genes, &parents.1.genes, crossover_point);
-    let mut snd_child_genes = merge_gene_blocks(&parents.1.genes, &parents.0.genes, crossover_point);
+    let mut fst_child_genes =
+        merge_gene_blocks(&parents.0.genes, &parents.1.genes, crossover_point);
+    let mut snd_child_genes =
+        merge_gene_blocks(&parents.1.genes, &parents.0.genes, crossover_point);
 
     let binomial = Binomial::new(chromosome_len as u64, mutation_rate as f64).unwrap();
     let uniform = Uniform::new(0, chromosome_len);
@@ -190,7 +187,11 @@ fn crossover(
     )
 }
 
-fn merge_gene_blocks(gene_blocks_fst: &[u64], gene_blocks_snd: &[u64], crossover_point: usize) -> Vec<u64> {
+fn merge_gene_blocks(
+    gene_blocks_fst: &[u64],
+    gene_blocks_snd: &[u64],
+    crossover_point: usize,
+) -> Vec<u64> {
     let mut new_genes = Vec::new();
     let crossover_block_idx = crossover_point / 64;
 
@@ -342,12 +343,32 @@ mod evolution_tests {
 
     #[test]
     fn test_merge_gene_blocks_multiple_blocks() {
-        let gene_blocks_fst = [0x1111111111111111, 0b0001000100010001000100010001000100010001000100010001000100010001, 0x1111111111111111];
-        let gene_blocks_snd = [0xAAAAAAAAAAAAAAAA, 0b1010101010101010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
+        let gene_blocks_fst = [
+            0x1111111111111111,
+            0b0001000100010001000100010001000100010001000100010001000100010001,
+            0x1111111111111111,
+        ];
+        let gene_blocks_snd = [
+            0xAAAAAAAAAAAAAAAA,
+            0b1010101010101010101010101010101010101010101010101010101010101010,
+            0xAAAAAAAAAAAAAAAA,
+        ];
 
-        let expected_result_77 = [0x1111111111111111, 0b0001000100010010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
-        let expected_result_65 = [0x1111111111111111, 0b0010101010101010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
-        let expected_result_64 = [0x1111111111111111, 0b1010101010101010101010101010101010101010101010101010101010101010, 0xAAAAAAAAAAAAAAAA];
+        let expected_result_77 = [
+            0x1111111111111111,
+            0b0001000100010010101010101010101010101010101010101010101010101010,
+            0xAAAAAAAAAAAAAAAA,
+        ];
+        let expected_result_65 = [
+            0x1111111111111111,
+            0b0010101010101010101010101010101010101010101010101010101010101010,
+            0xAAAAAAAAAAAAAAAA,
+        ];
+        let expected_result_64 = [
+            0x1111111111111111,
+            0b1010101010101010101010101010101010101010101010101010101010101010,
+            0xAAAAAAAAAAAAAAAA,
+        ];
 
         let result_77 = merge_gene_blocks(&gene_blocks_fst, &gene_blocks_snd, 77);
         let result_65 = merge_gene_blocks(&gene_blocks_fst, &gene_blocks_snd, 65);

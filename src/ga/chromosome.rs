@@ -15,11 +15,7 @@ impl Chromosome {
 //TODO: Take size into account
 impl Display for Chromosome {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let result: String = self
-            .genes
-            .iter()
-            .map(|&g| format!("[{g:b}]"))
-            .collect();
+        let result: String = self.genes.iter().map(|&g| format!("[{g:b}]")).collect();
 
         write!(f, "{}", &result)
     }
